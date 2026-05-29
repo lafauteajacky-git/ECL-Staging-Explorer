@@ -6,7 +6,7 @@ Le projet utilise uniquement des donnees synthetiques. Il ne doit pas etre utili
 
 L'application est prevue pour etre deployee sur Streamlit Community Cloud avec `app.py` comme fichier principal.
 
-## Fonctionnalites V0.4
+## Fonctionnalites V0.5
 
 - Generation d'un portefeuille synthetique d'environ 1 000 expositions.
 - Chargement optionnel d'un fichier CSV ou Excel compatible avec le schema MVP.
@@ -22,10 +22,12 @@ L'application est prevue pour etre deployee sur Streamlit Community Cloud avec `
 - ECL par scenario, ECL ponderee et impacts vs baseline.
 - Overlays manageriaux predefinis, activables et traces.
 - ECL avant overlay, montant d'overlay et ECL apres overlay.
+- Audit trail detaille avec run_id, hypotheses, scenarios, overlays et avertissements methodologiques.
+- Note de synthese automatique pour comite provisionnement, exportable en Markdown et Word.
 - Export Excel multi-onglets dans `outputs/` et telechargement depuis l'application.
 - Tests unitaires simples pour les modules metier.
 
-## Parcours de demonstration V0.4
+## Parcours de demonstration V0.5
 
 1. Generer ou charger un portefeuille.
 2. Controler la qualite des donnees.
@@ -33,7 +35,8 @@ L'application est prevue pour etre deployee sur Streamlit Community Cloud avec `
 4. Calculer les ECL.
 5. Simuler les scenarios macroeconomiques.
 6. Appliquer et documenter les overlays manageriaux.
-7. Analyser les resultats, les insights et exporter.
+7. Consulter l'audit trail et la note comite.
+8. Analyser les resultats, les insights et exporter.
 
 ## KPI disponibles
 
@@ -100,6 +103,14 @@ Overlays predefinis :
 - `Stage 2 Prudence Overlay` : +5% d'ECL sur les expositions Stage 2.
 - `Stage 3 Recovery Risk` : +10% d'ECL sur les expositions Stage 3.
 
+## Audit trail et note comite V0.5
+
+Chaque run recoit un identifiant du type `RUN-YYYYMMDD-HHMMSS`. Cet identifiant apparait dans l'application, dans l'export Excel et dans la note de synthese.
+
+L'audit trail detaille centralise la date du run, la version de l'application, les hypotheses de staging et d'ECL, les parametres de scenarios, les overlays actives, les anomalies data quality, les expositions a revoir, les top contributeurs et les avertissements methodologiques.
+
+La note de synthese comite est generee automatiquement a partir des resultats calcules. Elle est factuelle, orientee comite provisionnement et exportable en `.md` ou `.docx`.
+
 ## Installation
 
 ```powershell
@@ -135,6 +146,8 @@ modules/
   ecl_calculator.py
   scenario_engine.py
   overlay_engine.py
+  audit_trail.py
+  committee_summary.py
   reporting.py
 outputs/
 tests/
@@ -152,6 +165,8 @@ La logique metier est centralisee dans `modules/`. L'interface Streamlit orchest
 - Les ponderations par defaut sont 60% Baseline, 30% Downside et 10% Upside.
 - Les overlays sont appliques sur l'ECL avant overlay et s'additionnent en montant.
 - Les overlays ne modifient pas le stage, la PD, la LGD ou l'EAD sous-jacents.
+- La note comite est generee automatiquement a partir des resultats calcules et reste factuelle.
+- Le run_id est horodate mais ne constitue pas encore un audit trail versionne complet.
 - Les PD, LGD, EAD, maturites et indicateurs de defaut sont synthetiques.
 - Les effets de discounting ne sont pas encore modelises.
 
@@ -159,7 +174,7 @@ La logique metier est centralisee dans `modules/`. L'interface Streamlit orchest
 
 - Pas de moteur de production IFRS 9.
 - Pas de validation avancee de schema en entree.
-- Pas d'audit trail detaille.
+- Pas de stockage persistant des historiques de runs.
 - Pas de modele macroeconometrique avance.
 - Pas de scenarios sectoriels ou geographiques.
 - Pas de workflow d'approbation des overlays.
@@ -167,10 +182,12 @@ La logique metier est centralisee dans `modules/`. L'interface Streamlit orchest
 - Pas de calcul de cash-flows actualises.
 - Pas de gestion multi-entites ou multi-devises.
 
-## Prochaines etapes V0.5
+## Prochaines etapes V0.6
 
-- Ajouter un audit trail detaille des changements de parametres, scenarios et overlays.
-- Ajouter une note de synthese comite exportable.
-- Tracer l'utilisateur, l'horodatage, la justification et l'impact de chaque ajustement.
+- Polish commercial pour une demonstration client.
+- Controles de coherence metier avances.
+- Amelioration de la mise en page de la note comite.
+- Versioning persistant des runs.
+- Preparation d'un jeu de scenarios de demo guide.
 - Formaliser un dictionnaire de donnees et une validation de schema.
 - Enrichir les graphiques par produit, secteur, pays et vintage.

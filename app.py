@@ -9,6 +9,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
+from modules.audit_trail import APP_VERSION, build_audit_trail, generate_run_id
+from modules.committee_summary import build_docx_bytes, generate_committee_summary
 from modules.data_quality import missing_required_columns
 from modules.data_quality import run_data_quality_checks, summarize_quality_findings
 from modules.data_quality import calculate_quality_score
@@ -103,6 +105,7 @@ def main() -> None:
         if generate_clicked or "portfolio" not in st.session_state:
             st.session_state["portfolio"] = load_synthetic_portfolio(n_exposures=n_exposures, seed=seed)
             st.session_state["run_datetime"] = datetime.now()
+            st.session_state["run_id"] = generate_run_id(st.session_state["run_datetime"])
         portfolio = st.session_state["portfolio"]
 
     if portfolio is None:
@@ -142,6 +145,8 @@ def main() -> None:
         top_contributors = build_top_ecl_contributors(ecl_portfolio)
         insights = build_management_insights(ecl_portfolio, ecl_by_stage, ecl_by_product, findings, scenario_insights + overlay_insights)
         run_datetime = st.session_state.get("run_datetime", datetime.now())
+        run_id = st.session_state.get("run_id", generate_run_id(run_datetime))
+        review_cases = ecl_portfolio.loc[ecl_portfolio["review_required"]].copy()
         audit_view = build_audit_view(
             run_datetime,
             len(ecl_portfolio),
@@ -155,11 +160,46 @@ def main() -> None:
             overlay_results.loc[overlay_results["overlay_applied"]],
         )
         dashboard_summary = build_dashboard_summary_table(metrics, scenario_metrics | overlay_metrics)
+        detailed_audit_trail = build_audit_trail(
+            run_id,
+            run_datetime,
+            metrics,
+            scenario_metrics,
+            overlay_metrics,
+            ecl_by_stage,
+            scenario_parameters,
+            scenario_summary,
+            overlay_parameters,
+            overlay_summary,
+            findings,
+            review_cases,
+            top_contributors,
+            audit_view["staging_rules"],
+            audit_view["ecl_assumptions"],
+        )
+        committee_summary = generate_committee_summary(
+            run_id,
+            metrics,
+            scenario_metrics,
+            overlay_metrics,
+            ecl_by_stage,
+            ecl_by_product,
+            ecl_by_sector,
+            staged.groupby("stage", as_index=False).size().rename(columns={"size": "count"}),
+            scenario_parameters,
+            scenario_summary,
+            overlay_summary,
+            dq_summary,
+            len(review_cases),
+            top_contributors,
+            insights,
+        )
     except Exception as exc:
         st.error(f"Calcul impossible : {exc}")
         st.stop()
+    st.caption(f"Run ID: {run_id} | Version: {APP_VERSION}")
 
-    tab_home, tab_portfolio, tab_dq, tab_staging, tab_ecl, tab_macro, tab_overlays, tab_dashboard, tab_export = st.tabs(
+    tab_home, tab_portfolio, tab_dq, tab_staging, tab_ecl, tab_macro, tab_overlays, tab_dashboard, tab_audit, tab_summary, tab_export = st.tabs(
         [
             "Accueil",
             "Portefeuille",
@@ -169,6 +209,8 @@ def main() -> None:
             "Macro Scenarios",
             "Management Overlays",
             "Dashboard",
+            "Audit Trail",
+            "Committee Summary",
             "Export",
         ]
     )
@@ -263,6 +305,29 @@ def main() -> None:
         st.write("Synthese overlays")
         st.dataframe(audit_view["overlay_summary"], width="stretch")
 
+    with tab_audit:
+        render_audit_trail(detailed_audit_trail)
+
+    with tab_summary:
+        st.subheader("Committee Summary")
+        st.markdown(committee_summary)
+        st.download_button(
+            "Telecharger la note Markdown",
+            data=committee_summary.encode("utf-8"),
+            file_name=f"{run_id}_committee_summary.md",
+            mime="text/markdown",
+        )
+        try:
+            docx_bytes = build_docx_bytes(committee_summary)
+            st.download_button(
+                "Telecharger la note Word",
+                data=docx_bytes,
+                file_name=f"{run_id}_committee_summary.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        except Exception as exc:
+            st.warning(f"Export Word indisponible : {exc}")
+
     with tab_export:
         st.subheader("Export Excel")
         staging_results = staged[
@@ -279,9 +344,12 @@ def main() -> None:
             scenario_summary,
             overlay_parameters,
             overlay_results,
+            detailed_audit_trail,
+            committee_summary,
         )
         if st.button("Exporter dans le dossier outputs"):
             try:
+                export_file_name = f"{run_id}_ecl_staging_explorer_results.xlsx"
                 output_path = export_results_to_excel(
                     portfolio,
                     findings,
@@ -293,6 +361,9 @@ def main() -> None:
                     scenario_summary,
                     overlay_parameters,
                     overlay_results,
+                    detailed_audit_trail,
+                    committee_summary,
+                    file_name=export_file_name,
                 )
                 st.success(f"Export cree : {output_path}")
             except Exception as exc:
@@ -300,7 +371,7 @@ def main() -> None:
         st.download_button(
             "Telecharger les resultats Excel",
             data=export_bytes,
-            file_name="ecl_staging_explorer_results.xlsx",
+            file_name=f"{run_id}_ecl_staging_explorer_results.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
@@ -357,7 +428,10 @@ def render_home(metrics: dict[str, float] | None) -> None:
         "2. Controler la qualite des donnees",
         "3. Determiner le staging IFRS 9",
         "4. Calculer les ECL",
-        "5. Simuler les scenarios macro et exporter",
+        "5. Simuler les scenarios macro",
+        "6. Appliquer les overlays manageriaux",
+        "7. Consulter l'audit trail et la note comite",
+        "8. Exporter les resultats",
     ]
     for step in steps:
         st.write(step)
@@ -518,6 +592,14 @@ def render_management_overlays(
     )
 
 
+def render_audit_trail(audit_trail: dict[str, pd.DataFrame]) -> None:
+    """Render detailed audit trail sections."""
+    st.subheader("Audit Trail")
+    for title, table in audit_trail.items():
+        st.write(title.replace("_", " ").title())
+        st.dataframe(table, width="stretch")
+
+
 def render_dashboard(
     metrics: dict[str, float],
     ecl_by_stage: pd.DataFrame,
@@ -528,7 +610,7 @@ def render_dashboard(
     top_contributors: pd.DataFrame,
     overlay_metrics: dict[str, float | str],
 ) -> None:
-    """Render the V0.2 executive dashboard."""
+    """Render the executive dashboard."""
     kpi_row_1 = st.columns(4)
     kpi_row_1[0].metric("EAD totale", format_currency(metrics["total_ead"]))
     kpi_row_1[1].metric("ECL totale", format_currency(metrics["total_ecl"]))

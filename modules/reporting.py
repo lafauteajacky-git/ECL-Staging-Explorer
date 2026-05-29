@@ -281,6 +281,8 @@ def build_excel_export_bytes(
     scenario_results: pd.DataFrame | None = None,
     management_overlays: pd.DataFrame | None = None,
     overlay_results: pd.DataFrame | None = None,
+    detailed_audit_trail: dict[str, pd.DataFrame] | None = None,
+    committee_summary: str | None = None,
 ) -> bytes:
     """Build the V0.3 Excel export in memory."""
     buffer = BytesIO()
@@ -296,6 +298,8 @@ def build_excel_export_bytes(
         scenario_results,
         management_overlays,
         overlay_results,
+        detailed_audit_trail,
+        committee_summary,
     )
     return buffer.getvalue()
 
@@ -311,6 +315,8 @@ def export_results_to_excel(
     scenario_results: pd.DataFrame | None = None,
     management_overlays: pd.DataFrame | None = None,
     overlay_results: pd.DataFrame | None = None,
+    detailed_audit_trail: dict[str, pd.DataFrame] | None = None,
+    committee_summary: str | None = None,
     file_name: str = "ecl_staging_explorer_results.xlsx",
 ) -> Path:
     """Export MVP results to the outputs directory and return the file path."""
@@ -329,6 +335,8 @@ def export_results_to_excel(
         scenario_results,
         management_overlays,
         overlay_results,
+        detailed_audit_trail,
+        committee_summary,
     )
 
     return output_path
@@ -346,6 +354,8 @@ def _write_excel_export(
     scenario_results: pd.DataFrame | None = None,
     management_overlays: pd.DataFrame | None = None,
     overlay_results: pd.DataFrame | None = None,
+    detailed_audit_trail: dict[str, pd.DataFrame] | None = None,
+    committee_summary: str | None = None,
 ) -> None:
     with pd.ExcelWriter(target, engine="openpyxl") as writer:
         portfolio.to_excel(writer, sheet_name="Portfolio", index=False)
@@ -361,9 +371,19 @@ def _write_excel_export(
             management_overlays.to_excel(writer, sheet_name="Management Overlays", index=False)
         if overlay_results is not None:
             overlay_results.to_excel(writer, sheet_name="Overlay Results", index=False)
+        if detailed_audit_trail is not None:
+            _write_sectioned_sheet(writer, "Audit Trail", detailed_audit_trail)
+        if committee_summary is not None:
+            pd.DataFrame({"committee_summary": committee_summary.splitlines()}).to_excel(
+                writer, sheet_name="Committee Summary", index=False
+            )
 
-        start_row = 0
-        for title, table in audit_view.items():
-            pd.DataFrame({"section": [title]}).to_excel(writer, sheet_name="Audit View", startrow=start_row, index=False)
-            table.to_excel(writer, sheet_name="Audit View", startrow=start_row + 2, index=False)
-            start_row += len(table) + 5
+        _write_sectioned_sheet(writer, "Audit View", audit_view)
+
+
+def _write_sectioned_sheet(writer: pd.ExcelWriter, sheet_name: str, sections: dict[str, pd.DataFrame]) -> None:
+    start_row = 0
+    for title, table in sections.items():
+        pd.DataFrame({"section": [title]}).to_excel(writer, sheet_name=sheet_name, startrow=start_row, index=False)
+        table.to_excel(writer, sheet_name=sheet_name, startrow=start_row + 2, index=False)
+        start_row += len(table) + 5

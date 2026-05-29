@@ -3,6 +3,7 @@ import pandas as pd
 from modules.reporting import (
     aggregate_ecl_by_dimension,
     aggregate_ecl_by_stage,
+    build_excel_export_bytes,
     build_dashboard_metrics,
     build_review_flags,
 )
@@ -72,3 +73,18 @@ def test_aggregates_ecl_by_stage_product_and_sector():
     assert by_stage.loc[by_stage["stage"].eq("Stage 2"), "coverage_ratio"].iloc[0] == 0.1
     assert by_product.loc[by_product["product_type"].eq("SME"), "ead"].iloc[0] == 300
     assert by_sector.loc[by_sector["sector"].eq("Retail"), "exposure_count"].iloc[0] == 2
+
+
+def test_excel_export_accepts_audit_trail_and_committee_summary():
+    payload = build_excel_export_bytes(
+        pd.DataFrame({"loan_id": ["LN-1"]}),
+        pd.DataFrame({"loan_id": ["LN-1"], "check_code": ["MISSING_PD"]}),
+        pd.DataFrame({"loan_id": ["LN-1"], "stage": ["Stage 1"]}),
+        pd.DataFrame({"loan_id": ["LN-1"], "ecl": [10]}),
+        pd.DataFrame({"metric": ["ECL"], "value": [10]}),
+        {"run_summary": pd.DataFrame({"item": ["run"], "value": ["RUN-1"]})},
+        detailed_audit_trail={"run_summary": pd.DataFrame({"field": ["run_id"], "value": ["RUN-1"]})},
+        committee_summary="# Note de synthese",
+    )
+
+    assert len(payload) > 0

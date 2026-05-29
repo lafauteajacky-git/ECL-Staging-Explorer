@@ -1,1 +1,9 @@
 PowerShell Lancement ECL
+
+==> Acces repertoire 
+
+==> Installation des requirements
+python -m pip install -r requirements.txt
+
+
+==> Parametrage sur GitHub
