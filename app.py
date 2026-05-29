@@ -654,7 +654,22 @@ def main() -> None:
 
     with tab_summary:
         st.subheader("Committee Summary")
-        st.markdown(committee_summary)
+        render_committee_summary_visual(
+            committee_summary,
+            metrics,
+            scenario_metrics,
+            overlay_metrics,
+            ecl_by_stage,
+            ecl_by_product,
+            ecl_by_sector,
+            scenario_summary,
+            overlay_summary,
+            business_summary,
+            top_contributors,
+            client_discussion_points,
+            active_demo_profile,
+            run_id,
+        )
         st.download_button(
             "Telecharger la note Markdown",
             data=committee_summary.encode("utf-8"),
@@ -1057,6 +1072,171 @@ def render_business_consistency(business_summary: dict[str, float], business_ale
         if severity_filter:
             filtered = filtered[filtered["severity"].isin(severity_filter)]
         st.dataframe(filtered, width="stretch")
+
+
+def render_committee_summary_visual(
+    committee_summary: str,
+    metrics: dict[str, float],
+    scenario_metrics: dict[str, float],
+    overlay_metrics: dict[str, float | str],
+    ecl_by_stage: pd.DataFrame,
+    ecl_by_product: pd.DataFrame,
+    ecl_by_sector: pd.DataFrame,
+    scenario_summary: pd.DataFrame,
+    overlay_summary: pd.DataFrame,
+    business_summary: dict[str, float],
+    top_contributors: pd.DataFrame,
+    client_discussion_points: list[str],
+    demo_profile: str,
+    run_id: str,
+) -> None:
+    """Render the committee summary as a visual executive pack."""
+    st.write(
+        "Vue synthetique destinee a une lecture en comite : messages clefs, chiffres principaux, "
+        "repartition des expositions et points de decision."
+    )
+    st.caption(DEMO_DISCLAIMER_FR)
+
+    headline_cols = st.columns(4)
+    with headline_cols[0]:
+        render_kpi_card("Run ID", run_id, demo_profile)
+    with headline_cols[1]:
+        render_kpi_card("EAD totale", format_compact_currency(metrics["total_ead"]), "Portefeuille")
+    with headline_cols[2]:
+        render_kpi_card("ECL finale", format_compact_currency(float(overlay_metrics["ecl_after_overlay"])), "Apres scenarios et overlays")
+    with headline_cols[3]:
+        render_kpi_card("Taux de couverture", f"{metrics['coverage_ratio']:.2%}", "Modele avant overlay")
+
+    movement_cols = st.columns(4)
+    with movement_cols[0]:
+        render_kpi_card("Impact scenarios", format_compact_currency(scenario_metrics["weighted_impact_amount"]), f"{scenario_metrics['weighted_impact_pct']:.2%}")
+    with movement_cols[1]:
+        render_kpi_card("Impact overlays", format_compact_currency(float(overlay_metrics["total_overlay_amount"])), f"{overlay_metrics['overlay_variation_pct']:.2%}")
+    with movement_cols[2]:
+        render_kpi_card("Score coherence", f"{business_summary['business_consistency_score']:.1%}", f"{int(business_summary['business_alert_count'])} alerte(s)")
+    with movement_cols[3]:
+        render_kpi_card("Cas a revoir", str(metrics["review_required_count"]), "Priorisation metier")
+
+    st.divider()
+    st.markdown("#### Exposition et ECL par stage")
+    stage_left, stage_right = st.columns([1.1, 0.9])
+    with stage_left:
+        stage_long = ecl_by_stage.melt(
+            id_vars=["stage"],
+            value_vars=["ead", "ecl"],
+            var_name="metric",
+            value_name="amount",
+        )
+        stage_long["metric"] = stage_long["metric"].map({"ead": "EAD", "ecl": "ECL"})
+        stage_bar = px.bar(
+            stage_long,
+            x="stage",
+            y="amount",
+            color="metric",
+            barmode="group",
+            title="EAD et ECL par stage",
+            text_auto=".2s",
+        )
+        stage_bar.update_layout(height=380, xaxis_title="", yaxis_title="Montant")
+        st.plotly_chart(stage_bar, width="stretch")
+    with stage_right:
+        coverage_fig = px.bar(
+            ecl_by_stage,
+            x="stage",
+            y="coverage_ratio",
+            title="Taux de couverture par stage",
+            text_auto=".2%",
+        )
+        coverage_fig.update_layout(height=380, xaxis_title="", yaxis_title="ECL / EAD")
+        st.plotly_chart(coverage_fig, width="stretch")
+
+    st.markdown("#### Contributions principales")
+    contribution_left, contribution_right = st.columns(2)
+    with contribution_left:
+        product_share = _build_top_share_frame(ecl_by_product, "product_type", "ecl", top_n=5)
+        product_fig = px.pie(product_share, names="label", values="amount", title="Part ECL par produit")
+        product_fig.update_traces(textposition="inside", textinfo="percent+label")
+        product_fig.update_layout(height=390, showlegend=False)
+        st.plotly_chart(product_fig, width="stretch")
+    with contribution_right:
+        sector_share = _build_top_share_frame(ecl_by_sector, "sector", "ecl", top_n=5)
+        sector_fig = px.pie(sector_share, names="label", values="amount", title="Part ECL par secteur")
+        sector_fig.update_traces(textposition="inside", textinfo="percent+label")
+        sector_fig.update_layout(height=390, showlegend=False)
+        st.plotly_chart(sector_fig, width="stretch")
+
+    top_product = _top_contribution_label(ecl_by_product, "product_type", "ecl")
+    top_sector = _top_contribution_label(ecl_by_sector, "sector", "ecl")
+    insight_cols = st.columns(2)
+    with insight_cols[0]:
+        st.info(f"Produit principal contributeur a l'ECL : {top_product}.")
+    with insight_cols[1]:
+        st.info(f"Secteur principal contributeur a l'ECL : {top_sector}.")
+
+    st.markdown("#### Scenarios et overlays")
+    scenario_left, scenario_right = st.columns(2)
+    with scenario_left:
+        scenario_fig = px.bar(
+            scenario_summary,
+            x="scenario",
+            y="ecl",
+            title="ECL par scenario macro",
+            text_auto=".2s",
+        )
+        scenario_fig.update_layout(height=360, xaxis_title="", yaxis_title="ECL")
+        st.plotly_chart(scenario_fig, width="stretch")
+    with scenario_right:
+        active_overlays = overlay_summary.loc[overlay_summary["overlay_amount"] > 0].copy() if not overlay_summary.empty else overlay_summary
+        if active_overlays is not None and not active_overlays.empty:
+            overlay_fig = px.bar(
+                active_overlays.sort_values("overlay_amount", ascending=False),
+                x="overlay_amount",
+                y="overlay_name",
+                orientation="h",
+                title="Montant d'overlay par ajustement",
+                text_auto=".2s",
+            )
+            overlay_fig.update_layout(height=360, xaxis_title="Montant overlay", yaxis_title="")
+            st.plotly_chart(overlay_fig, width="stretch")
+        else:
+            st.info("Aucun overlay avec impact non nul.")
+
+    st.markdown("#### Points de decision pour le comite")
+    decision_left, decision_right = st.columns([1.1, 0.9])
+    with decision_left:
+        for point in client_discussion_points:
+            st.info(point)
+    with decision_right:
+        display_top = top_contributors.head(5).copy()
+        for column in ["ead", "ecl"]:
+            if column in display_top:
+                display_top[column] = display_top[column].map(format_currency)
+        st.write("Top 5 expositions contributrices")
+        st.dataframe(display_top, width="stretch", hide_index=True)
+
+    with st.expander("Afficher la note de synthese complete", expanded=False):
+        st.markdown(committee_summary)
+
+
+def _build_top_share_frame(df: pd.DataFrame, label_col: str, value_col: str, top_n: int = 5) -> pd.DataFrame:
+    """Build a compact top contributors frame with an Other bucket."""
+    if df.empty:
+        return pd.DataFrame({"label": ["Non disponible"], "amount": [1.0]})
+    sorted_df = df.sort_values(value_col, ascending=False).copy()
+    top = sorted_df.head(top_n)[[label_col, value_col]].rename(columns={label_col: "label", value_col: "amount"})
+    other_amount = sorted_df.iloc[top_n:][value_col].sum()
+    if other_amount > 0:
+        top = pd.concat([top, pd.DataFrame([{"label": "Autres", "amount": other_amount}])], ignore_index=True)
+    return top
+
+
+def _top_contribution_label(df: pd.DataFrame, label_col: str, value_col: str) -> str:
+    """Return the top contribution label with its share."""
+    if df.empty or df[value_col].sum() == 0:
+        return "non disponible"
+    row = df.sort_values(value_col, ascending=False).iloc[0]
+    share = row[value_col] / df[value_col].sum()
+    return f"{row[label_col]} ({share:.1%})"
 
 
 def render_dashboard(
