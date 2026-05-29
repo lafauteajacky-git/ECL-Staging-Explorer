@@ -283,7 +283,6 @@ def apply_auria_theme() -> None:
 
 def render_brand_header(run_id: str | None = None) -> None:
     """Render a compact Auria-style brand header."""
-    run_line = f'<span class="auria-pill">Run ID : {run_id}</span><span class="auria-pill">Version : {APP_VERSION}</span>' if run_id else ""
     st.markdown(
         f"""
         <div style="
@@ -368,10 +367,6 @@ def render_brand_header(run_id: str | None = None) -> None:
                         Demonstrateur IFRS 9 pour explorer le staging, les ECL, la qualite des donnees,
                         les scenarios macro, les overlays manageriaux, l'audit trail et la note comite.
                     </p>
-                    <div style="display:flex; flex-wrap:wrap; gap:10px; margin: 12px 0 10px;">
-                        <span class="auria-pill">Scenario actif : demo client</span>
-                        {run_line}
-                    </div>
                     <p style="margin:10px 0 0; color:rgba(255,255,255,0.90); font-size:0.92rem;">
                         <strong>Contexte :</strong> portefeuille synthetique multi-profils avec controles de coherence et restitution executive.
                     </p>
