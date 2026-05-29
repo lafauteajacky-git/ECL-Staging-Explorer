@@ -936,11 +936,105 @@ def render_management_overlays(
 
 
 def render_audit_trail(audit_trail: dict[str, pd.DataFrame]) -> None:
-    """Render detailed audit trail sections."""
+    """Render detailed audit trail sections in a more user-friendly audit view."""
     st.subheader("Audit Trail")
+    st.write(
+        "Vue de tracabilite du run : hypotheses appliquees, parametres, alertes et principaux resultats. "
+        "Les tableaux detailles restent disponibles pour audit ou export."
+    )
+
+    run_summary = audit_trail.get("run_summary", pd.DataFrame())
+    run_values = _audit_section_to_dict(run_summary, "field", "value")
+    summary_cols = st.columns(4)
+    with summary_cols[0]:
+        render_kpi_card("Run ID", str(run_values.get("run_id", "N/A")), str(run_values.get("app_version", "")))
+    with summary_cols[1]:
+        render_kpi_card("Expositions", str(run_values.get("exposure_count", "N/A")), "Traitees dans le run")
+    with summary_cols[2]:
+        render_kpi_card("EAD totale", format_compact_currency(float(run_values.get("total_ead", 0) or 0)), "Portefeuille")
+    with summary_cols[3]:
+        render_kpi_card("ECL finale", format_compact_currency(float(run_values.get("final_ecl_after_overlay", 0) or 0)), "Apres overlays")
+
+    st.info(str(run_values.get("demo_disclaimer", DEMO_DISCLAIMER_FR)))
+
+    st.markdown("#### Points de controle prioritaires")
+    control_cols = st.columns(4)
+    with control_cols[0]:
+        render_kpi_card("Anomalies DQ", str(run_values.get("data_quality_issue_count", 0)), "Data quality")
+    with control_cols[1]:
+        render_kpi_card("Cas a revoir", str(run_values.get("review_required_count", 0)), "Review required")
+    with control_cols[2]:
+        render_kpi_card("Alertes metier", str(run_values.get("business_alert_count", 0)), "Coherence")
+    with control_cols[3]:
+        render_kpi_card("Alertes critiques", str(run_values.get("business_critical_alert_count", 0)), "A prioriser")
+
+    st.markdown("#### Synthese des hypotheses")
+    hyp_left, hyp_right = st.columns(2)
+    with hyp_left:
+        _render_audit_bullets("Regles de staging appliquees", audit_trail.get("staging_rules"), ["rule", "threshold", "description"])
+        _render_audit_bullets("Hypotheses ECL", audit_trail.get("ecl_assumptions"), ["stage", "pd_used", "formula"])
+    with hyp_right:
+        _render_audit_bullets("Scenarios macro", audit_trail.get("scenario_parameters"), ["scenario", "weight", "pd_multiplier", "lgd_multiplier"])
+        _render_audit_bullets("Overlays actifs", audit_trail.get("overlay_parameters"), ["name", "overlay_type", "rate", "justification"])
+
+    st.markdown("#### Alertes et contributeurs")
+    alert_left, alert_right = st.columns([1.1, 0.9])
+    with alert_left:
+        critical_alerts = audit_trail.get("critical_business_alerts", pd.DataFrame())
+        if critical_alerts is not None and not critical_alerts.empty:
+            st.warning("Alertes critiques de coherence metier")
+            st.dataframe(critical_alerts, width="stretch", hide_index=True)
+        else:
+            st.success("Aucune alerte critique de coherence metier dans ce run.")
+    with alert_right:
+        top_contributors = audit_trail.get("top_contributors", pd.DataFrame())
+        if top_contributors is not None and not top_contributors.empty:
+            display_top = top_contributors.head(5).copy()
+            for column in ["ead", "ecl"]:
+                if column in display_top:
+                    display_top[column] = display_top[column].map(format_currency)
+            st.write("Top contributeurs ECL")
+            st.dataframe(display_top, width="stretch", hide_index=True)
+
+    st.markdown("#### Details auditables")
+    priority_sections = {
+        "run_summary",
+        "staging_rules",
+        "ecl_assumptions",
+        "scenario_parameters",
+        "overlay_parameters",
+        "critical_business_alerts",
+        "top_contributors",
+    }
     for title, table in audit_trail.items():
-        st.write(title.replace("_", " ").title())
-        st.dataframe(table, width="stretch")
+        if title in priority_sections:
+            continue
+        with st.expander(title.replace("_", " ").title(), expanded=False):
+            st.dataframe(table, width="stretch", hide_index=True)
+
+
+def _audit_section_to_dict(table: pd.DataFrame, key_col: str, value_col: str) -> dict:
+    """Convert a two-column audit table into a dictionary."""
+    if table is None or table.empty or key_col not in table or value_col not in table:
+        return {}
+    return dict(zip(table[key_col], table[value_col]))
+
+
+def _render_audit_bullets(title: str, table: pd.DataFrame | None, columns: list[str], limit: int = 8) -> None:
+    """Render an audit table as readable bullet points."""
+    st.write(f"**{title}**")
+    if table is None or table.empty:
+        st.caption("Non disponible.")
+        return
+    available_columns = [column for column in columns if column in table.columns]
+    if not available_columns:
+        st.dataframe(table.head(limit), width="stretch", hide_index=True)
+        return
+    for _, row in table.head(limit).iterrows():
+        parts = [f"{column}: {row[column]}" for column in available_columns if pd.notna(row[column])]
+        st.write(f"- {' | '.join(parts)}")
+    if len(table) > limit:
+        st.caption(f"{len(table) - limit} ligne(s) supplementaire(s) disponibles dans les details auditables.")
 
 
 def render_business_consistency(business_summary: dict[str, float], business_alerts: pd.DataFrame) -> None:
