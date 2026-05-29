@@ -316,6 +316,54 @@ def format_currency(value: float) -> str:
     return f"{value:,.0f} EUR".replace(",", " ")
 
 
+def format_compact_currency(value: float) -> str:
+    """Format dashboard amounts in a compact, non-truncated way."""
+    abs_value = abs(float(value))
+    if abs_value >= 1_000_000_000:
+        return f"{value / 1_000_000_000:.1f} Md EUR"
+    if abs_value >= 1_000_000:
+        return f"{value / 1_000_000:.1f} M EUR"
+    if abs_value >= 1_000:
+        return f"{value / 1_000:.1f} k EUR"
+    return format_currency(value)
+
+
+def render_kpi_card(label: str, value: str, caption: str = "") -> None:
+    """Render a stable dashboard KPI card without Streamlit metric truncation."""
+    st.markdown(
+        f"""
+        <div style="
+            min-height: 124px;
+            border: 1px solid rgba(11, 43, 70, 0.14);
+            border-radius: 18px;
+            background: rgba(255,255,255,0.88);
+            box-shadow: 0 18px 44px rgba(11, 43, 70, 0.10);
+            padding: 18px 18px 14px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        ">
+            <div style="
+                color: #6d7885;
+                font-size: 0.78rem;
+                font-weight: 850;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+            ">{label}</div>
+            <div style="
+                color: #0b2b46;
+                font-size: clamp(1.55rem, 2.3vw, 2.25rem);
+                line-height: 1.05;
+                font-weight: 850;
+                overflow-wrap: anywhere;
+            ">{value}</div>
+            <div style="color:#6d7885; font-size:0.78rem; min-height: 1rem;">{caption}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def main() -> None:
     apply_auria_theme()
 
@@ -931,55 +979,86 @@ def render_dashboard(
     demo_profile: str,
 ) -> None:
     """Render the executive dashboard."""
-    kpi_row_1 = st.columns(4)
     st.caption("EAD = Exposure at Default. ECL = Expected Credit Loss. Le taux de couverture correspond a ECL / EAD.")
-    kpi_row_1[0].metric("EAD totale", format_currency(metrics["total_ead"]), help="Exposition totale du portefeuille synthetique.")
-    kpi_row_1[1].metric("ECL totale", format_currency(metrics["total_ecl"]), help="Perte attendue calculee avant scenarios et overlays.")
-    kpi_row_1[2].metric("Taux de couverture", f"{metrics['coverage_ratio']:.2%}", help="ECL totale divisee par l'EAD totale.")
-    kpi_row_1[3].metric("Expositions", f"{metrics['exposure_count']:,}".replace(",", " "))
 
-    kpi_row_2 = st.columns(4)
-    kpi_row_2[0].metric("Part Stage 2", f"{metrics['stage_2_share']:.2%}")
-    kpi_row_2[1].metric("Part Stage 3", f"{metrics['stage_3_share']:.2%}")
-    kpi_row_2[2].metric("Anomalies DQ", metrics["data_quality_issue_count"])
-    kpi_row_2[3].metric("Cas a revoir", metrics["review_required_count"])
+    st.markdown("#### Vue executive")
+    executive_cols = st.columns(4)
+    with executive_cols[0]:
+        render_kpi_card("EAD totale", format_compact_currency(metrics["total_ead"]), "Portefeuille synthetique")
+    with executive_cols[1]:
+        render_kpi_card("ECL modele", format_compact_currency(metrics["total_ecl"]), "Avant scenarios et overlays")
+    with executive_cols[2]:
+        render_kpi_card("Taux de couverture", f"{metrics['coverage_ratio']:.2%}", "ECL modele / EAD")
+    with executive_cols[3]:
+        render_kpi_card("Expositions", f"{metrics['exposure_count']:,}".replace(",", " "), demo_profile)
 
-    kpi_row_3 = st.columns(5)
-    kpi_row_3[0].metric("ECL avant overlay", format_currency(float(overlay_metrics["ecl_before_overlay"])))
-    kpi_row_3[1].metric("Montant overlays", format_currency(float(overlay_metrics["total_overlay_amount"])))
-    kpi_row_3[2].metric("ECL apres overlay", format_currency(float(overlay_metrics["ecl_after_overlay"])))
-    kpi_row_3[3].metric("Variation overlays", f"{overlay_metrics['overlay_variation_pct']:.2%}")
-    kpi_row_3[4].metric("Top overlay", overlay_metrics["top_overlay_contributor"])
+    st.markdown("#### Risque et qualite")
+    risk_cols = st.columns(4)
+    with risk_cols[0]:
+        render_kpi_card("Stage 2", f"{metrics['stage_2_share']:.1%}", "Expositions en deterioration")
+    with risk_cols[1]:
+        render_kpi_card("Stage 3", f"{metrics['stage_3_share']:.1%}", "Expositions en defaut")
+    with risk_cols[2]:
+        render_kpi_card("Data quality", str(metrics["data_quality_issue_count"]), "Anomalies detectees")
+    with risk_cols[3]:
+        render_kpi_card("Coherence metier", f"{business_summary['business_consistency_score']:.1%}", f"{int(business_summary['business_alert_count'])} alerte(s)")
 
-    kpi_row_4 = st.columns(4)
-    kpi_row_4[0].metric("Profil demo", demo_profile)
-    kpi_row_4[1].metric("Score coherence", f"{business_summary['business_consistency_score']:.1%}")
-    kpi_row_4[2].metric("Alertes metier", int(business_summary["business_alert_count"]))
-    kpi_row_4[3].metric("Alertes critiques", int(business_summary["business_critical_alert_count"]))
+    st.markdown("#### Impact des overlays")
+    overlay_cols = st.columns([1.2, 1.0, 1.2, 0.9])
+    with overlay_cols[0]:
+        render_kpi_card("ECL avant overlay", format_compact_currency(float(overlay_metrics["ecl_before_overlay"])), "Base d'ajustement")
+    with overlay_cols[1]:
+        render_kpi_card("Overlays", format_compact_currency(float(overlay_metrics["total_overlay_amount"])), f"{overlay_metrics['overlay_variation_pct']:.2%}")
+    with overlay_cols[2]:
+        render_kpi_card("ECL apres overlay", format_compact_currency(float(overlay_metrics["ecl_after_overlay"])), "ECL finale demo")
+    with overlay_cols[3]:
+        render_kpi_card("Top overlay", str(overlay_metrics["top_overlay_contributor"]), "Principal ajustement")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.plotly_chart(px.bar(ecl_by_stage, x="stage", y="ead", title="EAD par stage", text_auto=".2s"), width="stretch")
-        st.plotly_chart(
-            px.bar(ecl_by_stage, x="stage", y="coverage_ratio", title="Taux de couverture par stage", text_auto=".2%"),
-            width="stretch",
+    st.divider()
+    st.markdown("#### Lecture du portefeuille")
+    overview_left, overview_right = st.columns([1.05, 0.95])
+    with overview_left:
+        ead_fig = px.bar(ecl_by_stage, x="stage", y="ead", title="EAD par stage", text_auto=".2s")
+        ead_fig.update_layout(height=360, yaxis_title="EAD", xaxis_title="")
+        st.plotly_chart(ead_fig, width="stretch")
+    with overview_right:
+        ecl_fig = px.bar(ecl_by_stage, x="stage", y="ecl", title="ECL par stage", text_auto=".2s")
+        ecl_fig.update_layout(height=360, yaxis_title="ECL", xaxis_title="")
+        st.plotly_chart(ecl_fig, width="stretch")
+
+    analysis_left, analysis_right = st.columns(2)
+    with analysis_left:
+        product_fig = px.bar(ecl_by_product.head(8), x="product_type", y="ecl", title="ECL par produit", text_auto=".2s")
+        product_fig.update_layout(height=360, yaxis_title="ECL", xaxis_title="")
+        st.plotly_chart(product_fig, width="stretch")
+        migration_columns = [col for col in migration_matrix.columns if col != "Initial stage"]
+        migration_fig = px.bar(
+            migration_matrix,
+            x="Initial stage",
+            y=migration_columns,
+            title="Migration Stage initial / Stage recalcule",
         )
-        st.plotly_chart(px.bar(ecl_by_product, x="product_type", y="ecl", title="ECL par produit", text_auto=".2s"), width="stretch")
-        st.plotly_chart(
-            px.bar(migration_matrix, x="Initial stage", y=[col for col in migration_matrix.columns if col != "Initial stage"], title="Migration Stage initial / Stage recalcule"),
-            width="stretch",
-        )
-    with col2:
-        st.plotly_chart(px.bar(ecl_by_stage, x="stage", y="ecl", title="ECL par stage", text_auto=".2s"), width="stretch")
-        st.plotly_chart(px.bar(ecl_by_sector, x="sector", y="ecl", title="ECL par secteur", text_auto=".2s"), width="stretch")
+        migration_fig.update_layout(height=360, yaxis_title="Nombre d'expositions", xaxis_title="")
+        st.plotly_chart(migration_fig, width="stretch")
+    with analysis_right:
+        sector_fig = px.bar(ecl_by_sector.head(8), x="sector", y="ecl", title="ECL par secteur", text_auto=".2s")
+        sector_fig.update_layout(height=360, yaxis_title="ECL", xaxis_title="")
+        st.plotly_chart(sector_fig, width="stretch")
         rating_counts = ecl_portfolio.groupby("current_rating", as_index=False).size().rename(columns={"size": "count"})
-        st.plotly_chart(px.bar(rating_counts, x="current_rating", y="count", title="Distribution des ratings actuels"), width="stretch")
-        st.write("Top 10 des expositions contributrices a l'ECL")
-        st.dataframe(top_contributors, width="stretch")
+        rating_fig = px.bar(rating_counts, x="current_rating", y="count", title="Distribution des ratings actuels")
+        rating_fig.update_layout(height=360, yaxis_title="Nombre d'expositions", xaxis_title="Rating actuel")
+        st.plotly_chart(rating_fig, width="stretch")
 
-    st.subheader("Client Discussion Points")
+    st.markdown("#### Points de discussion client")
     for point in client_discussion_points:
-        st.write(f"- {point}")
+        st.info(point)
+
+    with st.expander("Top 10 des expositions contributrices a l'ECL", expanded=False):
+        display_top = top_contributors.copy()
+        for column in ["ead", "ecl"]:
+            if column in display_top:
+                display_top[column] = display_top[column].map(format_currency)
+        st.dataframe(display_top, width="stretch", hide_index=True)
 
 
 if __name__ == "__main__":
