@@ -801,6 +801,118 @@ def render_home(metrics: dict[str, float] | None, demo_profile: str | None = Non
         col3.metric("Taux de couverture", f"{metrics['coverage_ratio']:.2%}", help="ECL totale divisee par l'EAD totale.")
         col4.metric("Expositions", f"{metrics['exposure_count']:,}".replace(",", " "))
 
+    render_contact_block()
+
+
+def render_contact_block() -> None:
+    """Render the Auria contact call-to-action at the bottom of the home page."""
+    st.markdown(
+        """
+        <section style="
+            position: relative;
+            overflow: hidden;
+            margin-top: 34px;
+            border-radius: 28px;
+            padding: 42px 48px;
+            color: #ffffff;
+            background:
+                radial-gradient(circle at 88% 12%, rgba(241, 169, 134, 0.18), transparent 12rem),
+                linear-gradient(135deg, #061d31, #0b2b46);
+            box-shadow: 0 24px 60px rgba(11, 43, 70, 0.16);
+        ">
+            <div style="
+                position:absolute;
+                width: 190px;
+                height: 190px;
+                border: 1px solid rgba(241, 169, 134, 0.50);
+                border-radius: 50%;
+                right: -46px;
+                top: -82px;
+                opacity: 0.75;
+            "></div>
+            <div style="
+                position: relative;
+                z-index: 1;
+                display: grid;
+                grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+                gap: 34px;
+                align-items: center;
+            ">
+                <div>
+                    <div style="
+                        color: #f1a986;
+                        font-size: 0.78rem;
+                        font-weight: 900;
+                        letter-spacing: 0.08em;
+                        text-transform: uppercase;
+                        margin-bottom: 14px;
+                    ">Auria Advisory</div>
+                    <div style="
+                        font-family: Georgia, 'Times New Roman', serif;
+                        font-size: clamp(2.4rem, 5vw, 4.2rem);
+                        line-height: 0.95;
+                        font-weight: 800;
+                        margin-bottom: 24px;
+                    ">Nous contacter</div>
+                    <p style="
+                        max-width: 720px;
+                        margin: 0;
+                        color: rgba(255,255,255,0.86);
+                        font-size: 1rem;
+                        line-height: 1.75;
+                    ">
+                        Pour structurer une trajectoire de validation reglementaire PD,
+                        echanger sur vos enjeux de gouvernance modele, de backtesting
+                        ou de mise en conformite, parlons de votre contexte.
+                    </p>
+                </div>
+                <div style="
+                    border: 1px solid rgba(255,255,255,0.18);
+                    border-radius: 22px;
+                    background: rgba(255,255,255,0.12);
+                    padding: 16px;
+                    backdrop-filter: blur(12px);
+                ">
+                    <a href="https://auria-advisory.fr/" target="_blank" style="
+                        display:flex;
+                        align-items:center;
+                        justify-content:space-between;
+                        gap:16px;
+                        min-height: 44px;
+                        border-radius: 999px;
+                        padding: 0 18px;
+                        margin-bottom: 12px;
+                        color:#0b2b46;
+                        background:#f4f5f6;
+                        text-decoration:none;
+                        font-weight:850;
+                    ">
+                        <span>Site internet</span>
+                        <span>auria-advisory.fr</span>
+                    </a>
+                    <a href="https://www.linkedin.com/company/auria-advisory/" target="_blank" style="
+                        display:flex;
+                        align-items:center;
+                        justify-content:space-between;
+                        gap:16px;
+                        min-height: 44px;
+                        border-radius: 999px;
+                        padding: 0 18px;
+                        color:#0b2b46;
+                        background:#f4f5f6;
+                        text-decoration:none;
+                        font-weight:850;
+                    ">
+                        <span>LinkedIn</span>
+                        <span>Suivre nos actualites</span>
+                    </a>
+                </div>
+            </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
 def render_macro_scenarios(
     scenario_parameters: pd.DataFrame,
