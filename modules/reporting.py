@@ -155,6 +155,7 @@ def build_management_insights(
     ecl_by_product: pd.DataFrame,
     data_quality_findings: pd.DataFrame,
     scenario_insights: list[str] | None = None,
+    business_consistency_summary: dict[str, float] | None = None,
 ) -> list[str]:
     """Generate simple automatic management insights from the demo results."""
     insights = []
@@ -187,6 +188,13 @@ def build_management_insights(
 
     if scenario_insights:
         insights.extend(scenario_insights)
+    if business_consistency_summary:
+        score = business_consistency_summary.get("business_consistency_score", 1.0)
+        critical_alerts = int(business_consistency_summary.get("business_critical_alert_count", 0))
+        if critical_alerts:
+            insights.append(f"{critical_alerts} alerte(s) critique(s) de coherence metier doivent etre revues avant usage decisionnel.")
+        elif score < 0.98:
+            insights.append(f"Le score de coherence metier ressort a {score:.1%}, avec des points de revue non critiques.")
 
     return insights
 
@@ -263,6 +271,10 @@ def build_dashboard_summary_table(metrics: dict[str, float], scenario_metrics: d
         "overlay_variation_amount": "Overlay variation amount",
         "overlay_variation_pct": "Overlay variation %",
         "top_overlay_contributor": "Top overlay contributor",
+        "business_checks_passed": "Business checks passed",
+        "business_alert_count": "Business consistency alerts",
+        "business_critical_alert_count": "Critical business consistency alerts",
+        "business_consistency_score": "Business consistency score",
     }
     combined = metrics.copy()
     if scenario_metrics:
@@ -283,6 +295,9 @@ def build_excel_export_bytes(
     overlay_results: pd.DataFrame | None = None,
     detailed_audit_trail: dict[str, pd.DataFrame] | None = None,
     committee_summary: str | None = None,
+    business_consistency: pd.DataFrame | None = None,
+    demo_storyline: pd.DataFrame | None = None,
+    client_discussion_points: pd.DataFrame | None = None,
 ) -> bytes:
     """Build the V0.3 Excel export in memory."""
     buffer = BytesIO()
@@ -300,6 +315,9 @@ def build_excel_export_bytes(
         overlay_results,
         detailed_audit_trail,
         committee_summary,
+        business_consistency,
+        demo_storyline,
+        client_discussion_points,
     )
     return buffer.getvalue()
 
@@ -317,6 +335,9 @@ def export_results_to_excel(
     overlay_results: pd.DataFrame | None = None,
     detailed_audit_trail: dict[str, pd.DataFrame] | None = None,
     committee_summary: str | None = None,
+    business_consistency: pd.DataFrame | None = None,
+    demo_storyline: pd.DataFrame | None = None,
+    client_discussion_points: pd.DataFrame | None = None,
     file_name: str = "ecl_staging_explorer_results.xlsx",
 ) -> Path:
     """Export MVP results to the outputs directory and return the file path."""
@@ -337,6 +358,9 @@ def export_results_to_excel(
         overlay_results,
         detailed_audit_trail,
         committee_summary,
+        business_consistency,
+        demo_storyline,
+        client_discussion_points,
     )
 
     return output_path
@@ -356,6 +380,9 @@ def _write_excel_export(
     overlay_results: pd.DataFrame | None = None,
     detailed_audit_trail: dict[str, pd.DataFrame] | None = None,
     committee_summary: str | None = None,
+    business_consistency: pd.DataFrame | None = None,
+    demo_storyline: pd.DataFrame | None = None,
+    client_discussion_points: pd.DataFrame | None = None,
 ) -> None:
     with pd.ExcelWriter(target, engine="openpyxl") as writer:
         portfolio.to_excel(writer, sheet_name="Portfolio", index=False)
@@ -371,6 +398,12 @@ def _write_excel_export(
             management_overlays.to_excel(writer, sheet_name="Management Overlays", index=False)
         if overlay_results is not None:
             overlay_results.to_excel(writer, sheet_name="Overlay Results", index=False)
+        if business_consistency is not None:
+            business_consistency.to_excel(writer, sheet_name="Business Consistency", index=False)
+        if demo_storyline is not None:
+            demo_storyline.to_excel(writer, sheet_name="Demo Storyline", index=False)
+        if client_discussion_points is not None:
+            client_discussion_points.to_excel(writer, sheet_name="Client Discussion Points", index=False)
         if detailed_audit_trail is not None:
             _write_sectioned_sheet(writer, "Audit Trail", detailed_audit_trail)
         if committee_summary is not None:

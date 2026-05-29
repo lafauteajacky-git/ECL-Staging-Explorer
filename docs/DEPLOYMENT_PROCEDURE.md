@@ -123,6 +123,61 @@ git commit -m "Add V0.5 audit trail and committee summary"
 
 Si le message `Author identity unknown` apparait, revenir a l'etape 5.
 
+### Cas frequent : `Changes not staged for commit`
+
+Si `git status` affiche :
+
+```text
+Changes not staged for commit:
+  modified: README.md
+  modified: app.py
+
+Untracked files:
+  docs/DEPLOYMENT_PROCEDURE.md
+
+no changes added to commit
+```
+
+Cela veut dire que Git voit les modifications, mais qu'elles ne sont pas encore ajoutees au prochain commit.
+
+Ajouter les fichiers :
+
+```powershell
+git add app.py README.md docs/DEPLOYMENT_PROCEDURE.md
+```
+
+Ou, pour ajouter toutes les modifications du dossier :
+
+```powershell
+git add .
+```
+
+Verifier :
+
+```powershell
+git status
+```
+
+Les fichiers doivent apparaitre dans :
+
+```text
+Changes to be committed
+```
+
+Puis faire le commit :
+
+```powershell
+git commit -m "Align Streamlit UI with Auria visual identity"
+```
+
+Enfin pousser vers GitHub :
+
+```powershell
+git push origin main
+```
+
+Apres le push, Streamlit Cloud se met normalement a jour automatiquement. Si ce n'est pas le cas, aller dans `Manage app`, puis cliquer sur `Reboot app` ou `Rerun`.
+
 ## 9. Pousser une branche vers GitHub
 
 Si l'on est sur une branche de travail :
@@ -363,4 +418,3 @@ Ou :
 ```powershell
 python -m streamlit run app.py
 ```
-

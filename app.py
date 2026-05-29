@@ -10,6 +10,16 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from modules.audit_trail import APP_VERSION, build_audit_trail, generate_run_id
+from modules.business_checks import (
+    DEMO_STORYLINE,
+    PROFILE_CONTEXT,
+    build_client_discussion_points,
+    build_profile_insights,
+    discussion_points_to_frame,
+    run_business_consistency_checks,
+    storyline_to_frame,
+    summarize_business_consistency,
+)
 from modules.committee_summary import build_docx_bytes, generate_committee_summary
 from modules.data_quality import missing_required_columns
 from modules.data_quality import run_data_quality_checks, summarize_quality_findings
@@ -36,7 +46,7 @@ from modules.reporting import (
     build_top_ecl_contributors,
     export_results_to_excel,
 )
-from modules.sample_data import generate_portfolio
+from modules.sample_data import DEMO_PORTFOLIO_PROFILES, generate_demo_portfolio
 from modules.scenario_engine import (
     DEFAULT_SCENARIOS,
     build_scenario_insights,
@@ -278,7 +288,7 @@ def render_brand_header(run_id: str | None = None) -> None:
         <section class="auria-hero">
             <div class="auria-kicker">Auria Advisory</div>
             <h1>ECL Staging Explorer</h1>
-            <p>IFRS 9 ECL & Staging Demonstrator pour explorer les donnees, le staging, les scenarios macro, les overlays et la documentation comite.</p>
+            <p>IFRS 9 ECL & Staging Demonstrator pour transformer le provisionnement IFRS 9 en un outil de pilotage transparent, explicable et auditable.</p>
             {run_line}
         </section>
         """,
@@ -287,9 +297,9 @@ def render_brand_header(run_id: str | None = None) -> None:
 
 
 @st.cache_data
-def load_synthetic_portfolio(n_exposures: int, seed: int) -> pd.DataFrame:
+def load_synthetic_portfolio(n_exposures: int, seed: int, demo_profile: str) -> pd.DataFrame:
     """Cache synthetic generation for a smoother demo experience."""
-    return generate_portfolio(n_exposures=n_exposures, seed=seed)
+    return generate_demo_portfolio(profile=demo_profile, n_exposures=n_exposures, seed=seed)
 
 
 def read_uploaded_file(uploaded_file) -> pd.DataFrame:
@@ -310,6 +320,8 @@ def main() -> None:
     with st.sidebar:
         st.header("Parametres")
         source = st.radio("Source du portefeuille", ["Generer un portefeuille synthetique", "Charger un fichier"], index=0)
+        demo_profile = st.selectbox("Demo Portfolio Profile", DEMO_PORTFOLIO_PROFILES, index=0)
+        st.caption(PROFILE_CONTEXT.get(demo_profile, "Profil de demonstration synthetique."))
         n_exposures = st.slider("Nombre d'expositions", min_value=100, max_value=5_000, value=1_000, step=100)
         seed = st.number_input("Seed aleatoire", min_value=1, value=42, step=1)
         generate_clicked = st.button("Generer le portefeuille synthetique", type="primary")
@@ -335,11 +347,13 @@ def main() -> None:
             st.error(f"Chargement impossible : {exc}")
             st.stop()
     else:
-        if generate_clicked or "portfolio" not in st.session_state:
-            st.session_state["portfolio"] = load_synthetic_portfolio(n_exposures=n_exposures, seed=seed)
+        if generate_clicked or "portfolio" not in st.session_state or st.session_state.get("demo_profile") != demo_profile:
+            st.session_state["portfolio"] = load_synthetic_portfolio(n_exposures=n_exposures, seed=seed, demo_profile=demo_profile)
+            st.session_state["demo_profile"] = demo_profile
             st.session_state["run_datetime"] = datetime.now()
             st.session_state["run_id"] = generate_run_id(st.session_state["run_datetime"])
         portfolio = st.session_state["portfolio"]
+    active_demo_profile = st.session_state.get("demo_profile", demo_profile)
 
     if portfolio is None:
         render_home(None)
@@ -374,9 +388,25 @@ def main() -> None:
         overlay_metrics = build_overlay_metrics(overlay_results, overlay_summary)
         overlay_waterfall = build_overlay_waterfall(overlay_metrics, overlay_summary)
         overlay_insights = build_overlay_insights(overlay_results, overlay_summary, overlay_metrics)
+        business_alerts = run_business_consistency_checks(ecl_portfolio)
+        business_summary = summarize_business_consistency(business_alerts, len(ecl_portfolio))
+        client_discussion_points = build_client_discussion_points(
+            active_demo_profile,
+            business_summary,
+            metrics,
+            scenario_metrics,
+            overlay_metrics,
+        )
         migration_matrix = build_migration_matrix(ecl_portfolio)
         top_contributors = build_top_ecl_contributors(ecl_portfolio)
-        insights = build_management_insights(ecl_portfolio, ecl_by_stage, ecl_by_product, findings, scenario_insights + overlay_insights)
+        insights = build_management_insights(
+            ecl_portfolio,
+            ecl_by_stage,
+            ecl_by_product,
+            findings,
+            scenario_insights + overlay_insights + build_profile_insights(active_demo_profile, metrics, overlay_metrics),
+            business_summary,
+        )
         run_datetime = st.session_state.get("run_datetime", datetime.now())
         run_id = st.session_state.get("run_id", generate_run_id(run_datetime))
         review_cases = ecl_portfolio.loc[ecl_portfolio["review_required"]].copy()
@@ -392,7 +422,11 @@ def main() -> None:
             overlay_metrics,
             overlay_results.loc[overlay_results["overlay_applied"]],
         )
-        dashboard_summary = build_dashboard_summary_table(metrics, scenario_metrics | overlay_metrics)
+        audit_view["business_consistency"] = pd.DataFrame(
+            [{"metric": metric, "value": value} for metric, value in business_summary.items()]
+        )
+        audit_view["business_alerts"] = business_alerts
+        dashboard_summary = build_dashboard_summary_table(metrics, scenario_metrics | overlay_metrics | business_summary)
         detailed_audit_trail = build_audit_trail(
             run_id,
             run_datetime,
@@ -409,6 +443,10 @@ def main() -> None:
             top_contributors,
             audit_view["staging_rules"],
             audit_view["ecl_assumptions"],
+            business_summary,
+            business_alerts,
+            client_discussion_points,
+            active_demo_profile,
         )
         committee_summary = generate_committee_summary(
             run_id,
@@ -426,17 +464,21 @@ def main() -> None:
             len(review_cases),
             top_contributors,
             insights,
+            business_summary,
+            client_discussion_points,
+            active_demo_profile,
         )
     except Exception as exc:
         st.error(f"Calcul impossible : {exc}")
         st.stop()
     render_brand_header(run_id)
 
-    tab_home, tab_portfolio, tab_dq, tab_staging, tab_ecl, tab_macro, tab_overlays, tab_dashboard, tab_audit, tab_summary, tab_export = st.tabs(
+    tab_home, tab_portfolio, tab_dq, tab_business, tab_staging, tab_ecl, tab_macro, tab_overlays, tab_dashboard, tab_audit, tab_summary, tab_export = st.tabs(
         [
             "Accueil",
             "Portefeuille",
             "Data Quality",
+            "Business Consistency",
             "Staging",
             "ECL Calculation",
             "Macro Scenarios",
@@ -449,7 +491,7 @@ def main() -> None:
     )
 
     with tab_home:
-        render_home(metrics)
+        render_home(metrics, active_demo_profile)
 
     with tab_portfolio:
         st.subheader("Portefeuille synthetique")
@@ -464,6 +506,9 @@ def main() -> None:
         col3.metric("Score qualite", f"{quality_score:.2f}/100")
         st.dataframe(dq_summary, width="stretch")
         st.dataframe(findings, width="stretch")
+
+    with tab_business:
+        render_business_consistency(business_summary, business_alerts)
 
     with tab_staging:
         st.subheader("Affectation des stages")
@@ -513,7 +558,19 @@ def main() -> None:
 
     with tab_dashboard:
         st.subheader("Dashboard executif")
-        render_dashboard(metrics, ecl_by_stage, ecl_by_product, ecl_by_sector, ecl_portfolio, migration_matrix, top_contributors, overlay_metrics)
+        render_dashboard(
+            metrics,
+            ecl_by_stage,
+            ecl_by_product,
+            ecl_by_sector,
+            ecl_portfolio,
+            migration_matrix,
+            top_contributors,
+            overlay_metrics,
+            business_summary,
+            client_discussion_points,
+            active_demo_profile,
+        )
 
         st.subheader("Management Insights")
         for insight in insights:
@@ -537,6 +594,10 @@ def main() -> None:
         st.dataframe(audit_view["management_overlays"], width="stretch")
         st.write("Synthese overlays")
         st.dataframe(audit_view["overlay_summary"], width="stretch")
+        st.write("Coherence metier")
+        st.dataframe(audit_view["business_consistency"], width="stretch")
+        st.write("Alertes de coherence metier")
+        st.dataframe(audit_view["business_alerts"], width="stretch")
 
     with tab_audit:
         render_audit_trail(detailed_audit_trail)
@@ -579,6 +640,9 @@ def main() -> None:
             overlay_results,
             detailed_audit_trail,
             committee_summary,
+            business_alerts,
+            storyline_to_frame(),
+            discussion_points_to_frame(client_discussion_points),
         )
         if st.button("Exporter dans le dossier outputs"):
             try:
@@ -596,6 +660,9 @@ def main() -> None:
                     overlay_results,
                     detailed_audit_trail,
                     committee_summary,
+                    business_alerts,
+                    storyline_to_frame(),
+                    discussion_points_to_frame(client_discussion_points),
                     file_name=export_file_name,
                 )
                 st.success(f"Export cree : {output_path}")
@@ -646,34 +713,27 @@ def build_scenario_controls() -> dict[str, dict[str, float]]:
     return scenario_config
 
 
-def render_home(metrics: dict[str, float] | None) -> None:
+def render_home(metrics: dict[str, float] | None, demo_profile: str | None = None) -> None:
     """Render the client-demo landing section."""
     st.subheader("IFRS 9 ECL & Staging Demonstrator")
+    st.markdown("**Transformer le provisionnement IFRS 9 en un outil de pilotage transparent, explicable et auditable.**")
     st.write(
         "Ce demonstrateur illustre de maniere simple et pedagogique la chaine IFRS 9 : qualite des donnees, "
         "staging, calcul des pertes attendues et restitution executive pour discussion client."
     )
-    st.warning("Toutes les donnees affichees sont synthetiques. Aucune donnee bancaire reelle n'est integree.")
+    st.warning("Donnees 100% synthetiques - demonstrateur non destine a la production.")
 
-    st.write("Parcours de demonstration")
-    steps = [
-        "1. Generer ou charger un portefeuille",
-        "2. Controler la qualite des donnees",
-        "3. Determiner le staging IFRS 9",
-        "4. Calculer les ECL",
-        "5. Simuler les scenarios macro",
-        "6. Appliquer les overlays manageriaux",
-        "7. Consulter l'audit trail et la note comite",
-        "8. Exporter les resultats",
-    ]
-    for step in steps:
-        st.write(step)
+    if demo_profile:
+        st.info(f"Profil de demo selectionne : {demo_profile}. {PROFILE_CONTEXT.get(demo_profile, '')}")
+
+    st.write("Demo Storyline")
+    st.dataframe(pd.DataFrame(DEMO_STORYLINE), width="stretch", hide_index=True)
 
     if metrics:
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("EAD totale", format_currency(metrics["total_ead"]))
-        col2.metric("ECL totale", format_currency(metrics["total_ecl"]))
-        col3.metric("Taux de couverture", f"{metrics['coverage_ratio']:.2%}")
+        col1.metric("EAD totale", format_currency(metrics["total_ead"]), help="Exposure at Default : exposition utilisee dans le calcul ECL.")
+        col2.metric("ECL totale", format_currency(metrics["total_ecl"]), help="Expected Credit Loss : perte de credit attendue selon les hypotheses du MVP.")
+        col3.metric("Taux de couverture", f"{metrics['coverage_ratio']:.2%}", help="ECL totale divisee par l'EAD totale.")
         col4.metric("Expositions", f"{metrics['exposure_count']:,}".replace(",", " "))
 
 
@@ -833,6 +893,28 @@ def render_audit_trail(audit_trail: dict[str, pd.DataFrame]) -> None:
         st.dataframe(table, width="stretch")
 
 
+def render_business_consistency(business_summary: dict[str, float], business_alerts: pd.DataFrame) -> None:
+    """Render business consistency score and alerts."""
+    st.subheader("Business Consistency")
+    st.write(
+        "Ces controles recherchent des incoherences metier simples entre stage, defaut, DPD, PD, LGD et ECL. "
+        "Ils servent a orienter la revue, sans remplacer une validation de modele."
+    )
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Score de coherence", f"{business_summary['business_consistency_score']:.1%}")
+    col2.metric("Controles passes", f"{int(business_summary['business_checks_passed']):,}".replace(",", " "))
+    col3.metric("Alertes", int(business_summary["business_alert_count"]))
+    col4.metric("Alertes critiques", int(business_summary["business_critical_alert_count"]))
+    if business_alerts.empty:
+        st.success("Aucune alerte de coherence metier detectee.")
+    else:
+        severity_filter = st.multiselect("Filtrer par criticite", sorted(business_alerts["severity"].unique()))
+        filtered = business_alerts.copy()
+        if severity_filter:
+            filtered = filtered[filtered["severity"].isin(severity_filter)]
+        st.dataframe(filtered, width="stretch")
+
+
 def render_dashboard(
     metrics: dict[str, float],
     ecl_by_stage: pd.DataFrame,
@@ -842,12 +924,16 @@ def render_dashboard(
     migration_matrix: pd.DataFrame,
     top_contributors: pd.DataFrame,
     overlay_metrics: dict[str, float | str],
+    business_summary: dict[str, float],
+    client_discussion_points: list[str],
+    demo_profile: str,
 ) -> None:
     """Render the executive dashboard."""
     kpi_row_1 = st.columns(4)
-    kpi_row_1[0].metric("EAD totale", format_currency(metrics["total_ead"]))
-    kpi_row_1[1].metric("ECL totale", format_currency(metrics["total_ecl"]))
-    kpi_row_1[2].metric("Taux de couverture", f"{metrics['coverage_ratio']:.2%}")
+    st.caption("EAD = Exposure at Default. ECL = Expected Credit Loss. Le taux de couverture correspond a ECL / EAD.")
+    kpi_row_1[0].metric("EAD totale", format_currency(metrics["total_ead"]), help="Exposition totale du portefeuille synthetique.")
+    kpi_row_1[1].metric("ECL totale", format_currency(metrics["total_ecl"]), help="Perte attendue calculee avant scenarios et overlays.")
+    kpi_row_1[2].metric("Taux de couverture", f"{metrics['coverage_ratio']:.2%}", help="ECL totale divisee par l'EAD totale.")
     kpi_row_1[3].metric("Expositions", f"{metrics['exposure_count']:,}".replace(",", " "))
 
     kpi_row_2 = st.columns(4)
@@ -862,6 +948,12 @@ def render_dashboard(
     kpi_row_3[2].metric("ECL apres overlay", format_currency(float(overlay_metrics["ecl_after_overlay"])))
     kpi_row_3[3].metric("Variation overlays", f"{overlay_metrics['overlay_variation_pct']:.2%}")
     kpi_row_3[4].metric("Top overlay", overlay_metrics["top_overlay_contributor"])
+
+    kpi_row_4 = st.columns(4)
+    kpi_row_4[0].metric("Profil demo", demo_profile)
+    kpi_row_4[1].metric("Score coherence", f"{business_summary['business_consistency_score']:.1%}")
+    kpi_row_4[2].metric("Alertes metier", int(business_summary["business_alert_count"]))
+    kpi_row_4[3].metric("Alertes critiques", int(business_summary["business_critical_alert_count"]))
 
     col1, col2 = st.columns(2)
     with col1:
@@ -882,6 +974,10 @@ def render_dashboard(
         st.plotly_chart(px.bar(rating_counts, x="current_rating", y="count", title="Distribution des ratings actuels"), width="stretch")
         st.write("Top 10 des expositions contributrices a l'ECL")
         st.dataframe(top_contributors, width="stretch")
+
+    st.subheader("Client Discussion Points")
+    for point in client_discussion_points:
+        st.write(f"- {point}")
 
 
 if __name__ == "__main__":

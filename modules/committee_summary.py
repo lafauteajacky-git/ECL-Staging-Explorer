@@ -1,4 +1,4 @@
-"""Committee summary generation for ECL Staging Explorer V0.5."""
+"""Committee summary generation for ECL Staging Explorer V0.6."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ REQUIRED_SECTIONS = [
     "## 6. Analyse des overlays",
     "## 7. Qualite des donnees et points d'attention",
     "## 8. Conclusion et recommandations",
+    "## 9. Client Discussion Points",
 ]
 
 
@@ -40,6 +41,9 @@ def generate_committee_summary(
     review_count: int,
     top_contributors: pd.DataFrame,
     insights: list[str],
+    business_consistency_summary: dict | None = None,
+    client_discussion_points: list[str] | None = None,
+    demo_profile: str | None = None,
 ) -> str:
     """Generate a sober markdown committee summary from calculated results."""
     key_message = insights[0] if insights else "Les resultats doivent etre interpretes dans le cadre simplifie du MVP."
@@ -66,10 +70,17 @@ def generate_committee_summary(
         f"- {row['loan_id']}: {format_amount(row['ecl'])}, stage {row['stage']}"
         for _, row in top_contributors.head(5).iterrows()
     )
+    business_consistency_summary = business_consistency_summary or {}
+    client_discussion_points = client_discussion_points or []
+    discussion_lines = "\n".join(f"- {point}" for point in client_discussion_points) or "- Non disponible."
+    consistency_score = business_consistency_summary.get("business_consistency_score", 1.0)
+    alert_count = business_consistency_summary.get("business_alert_count", 0)
+    critical_count = business_consistency_summary.get("business_critical_alert_count", 0)
 
     return f"""# Note de synthese - Comite provisionnement
 
 Run ID: {run_id}
+Version de demonstration: {demo_profile or "Non specifie"}
 
 ## 1. Resume executif
 
@@ -78,6 +89,7 @@ Run ID: {run_id}
 - Taux de couverture modele: {metrics['coverage_ratio']:.2%}
 - Variation liee aux scenarios: {format_amount(scenario_metrics['weighted_impact_amount'])} ({scenario_metrics['weighted_impact_pct']:.2%})
 - Variation liee aux overlays: {format_amount(overlay_metrics['total_overlay_amount'])} ({overlay_metrics['overlay_variation_pct']:.2%})
+- Score de coherence metier: {consistency_score:.1%}
 - Message cle: {key_message}
 
 ## 2. Vue d'ensemble du portefeuille
@@ -124,6 +136,7 @@ Top contributeurs:
 
 - Nombre total d'anomalies: {metrics['data_quality_issue_count']}
 - Expositions a revoir: {review_count}
+- Alertes de coherence metier: {alert_count} dont {critical_count} critique(s)
 - Impact potentiel: les anomalies critiques peuvent affecter la fiabilite du calcul et doivent etre analysees avant usage production.
 
 {dq_lines}
@@ -135,6 +148,10 @@ Top contributeurs:
 - Documenter formellement les hypotheses de scenarios et d'overlays.
 - Completer les controles de coherence avant une industrialisation.
 - Garder en memoire que ce MVP est un demonstrateur sur donnees synthetiques.
+
+## 9. Client Discussion Points
+
+{discussion_lines}
 """
 
 

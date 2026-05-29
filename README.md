@@ -6,7 +6,7 @@ Le projet utilise uniquement des donnees synthetiques. Il ne doit pas etre utili
 
 L'application est prevue pour etre deployee sur Streamlit Community Cloud avec `app.py` comme fichier principal.
 
-## Fonctionnalites V0.5
+## Fonctionnalites V0.6
 
 - Generation d'un portefeuille synthetique d'environ 1 000 expositions.
 - Chargement optionnel d'un fichier CSV ou Excel compatible avec le schema MVP.
@@ -24,20 +24,30 @@ L'application est prevue pour etre deployee sur Streamlit Community Cloud avec `
 - ECL avant overlay, montant d'overlay et ECL apres overlay.
 - Audit trail detaille avec run_id, hypotheses, scenarios, overlays et avertissements methodologiques.
 - Note de synthese automatique pour comite provisionnement, exportable en Markdown et Word.
+- Profils de portefeuille de demonstration : Balanced, Low Risk, Deteriorated, Data Quality Issues et CRE Stress.
+- Controles de coherence metier avances avec score, alertes et criticite.
+- Demo Storyline en 6 etapes pour fluidifier le rendez-vous client.
+- Client Discussion Points generes automatiquement.
 - Interface visuelle alignee sur une charte Auria Advisory : bleu nuit, peche, fond creme, cartes executive et rendu plus premium.
 - Export Excel multi-onglets dans `outputs/` et telechargement depuis l'application.
 - Tests unitaires simples pour les modules metier.
 
-## Parcours de demonstration V0.5
+## Parcours de demonstration V0.6
 
-1. Generer ou charger un portefeuille.
+1. Choisir un `Demo Portfolio Profile` et generer le portefeuille synthetique.
 2. Controler la qualite des donnees.
-3. Determiner le staging IFRS 9.
-4. Calculer les ECL.
-5. Simuler les scenarios macroeconomiques.
-6. Appliquer et documenter les overlays manageriaux.
-7. Consulter l'audit trail et la note comite.
-8. Analyser les resultats, les insights et exporter.
+3. Verifier la coherence metier des resultats.
+4. Determiner le staging IFRS 9 et calculer les ECL.
+5. Simuler les scenarios macroeconomiques et appliquer les overlays.
+6. Presenter le dashboard, l'audit trail, la note comite et les exports.
+
+## Profils de portefeuille V0.6
+
+- `Balanced Portfolio` : profil equilibre pour illustrer le parcours de bout en bout.
+- `Low Risk Portfolio` : profil sain avec faible migration Stage 2/3 et taux de couverture limite.
+- `Deteriorated Portfolio` : profil degrade pour illustrer hausse ECL, migration et concentration des risques.
+- `Data Quality Issues Portfolio` : profil oriente anomalies et prudence methodologique.
+- `CRE Stress Portfolio` : profil concentre immobilier commercial pour illustrer stress sectoriel et overlays.
 
 ## KPI disponibles
 
@@ -60,6 +70,9 @@ L'application est prevue pour etre deployee sur Streamlit Community Cloud avec `
 - ECL apres overlay.
 - Variation overlays en montant et en pourcentage.
 - Top overlay contributeur.
+- Score de coherence metier.
+- Nombre d'alertes de coherence metier.
+- Nombre d'alertes critiques.
 
 ## Visualisations V0.2
 
@@ -79,6 +92,21 @@ L'application est prevue pour etre deployee sur Streamlit Community Cloud avec `
 - Montant d'overlay par type.
 - Montant d'overlay par stage.
 - Top 10 des expositions les plus impactees par les overlays.
+
+## Controles de coherence metier V0.6
+
+Les controles identifient notamment :
+
+- Stage 1 avec defaut ou DPD >= 90.
+- Stage 1 avec forbearance ou watchlist actif.
+- Stage 2 sans justification claire.
+- Stage 3 sans defaut, DPD >= 90 ou indicateur de depreciation.
+- PD lifetime inferieure a la PD 12M.
+- PD ou LGD hors bornes 0%-100%.
+- ECL negative ou tres elevee par rapport a l'EAD.
+- Rating ameliore avec maintien en Stage 2 ou Stage 3.
+
+Le score de coherence est un indicateur pedagogique : nombre de controles passes rapporte au nombre total de controles attendus.
 
 ## Scenarios macroeconomiques V0.3
 
@@ -147,6 +175,7 @@ modules/
   ecl_calculator.py
   scenario_engine.py
   overlay_engine.py
+  business_checks.py
   audit_trail.py
   committee_summary.py
   reporting.py
@@ -167,6 +196,9 @@ La logique metier est centralisee dans `modules/`. L'interface Streamlit orchest
 - Les overlays sont appliques sur l'ECL avant overlay et s'additionnent en montant.
 - Les overlays ne modifient pas le stage, la PD, la LGD ou l'EAD sous-jacents.
 - La note comite est generee automatiquement a partir des resultats calcules et reste factuelle.
+- Les profils de portefeuille sont des jeux synthetiques orientes demonstration, non calibres sur des donnees reelles.
+- Le score de coherence metier est un score de plausibilite pedagogique, pas un indicateur de validation de modele.
+- Les discussion points sont generes automatiquement a partir du profil et des resultats, sans jugement expert externe.
 - Le run_id est horodate mais ne constitue pas encore un audit trail versionne complet.
 - Les PD, LGD, EAD, maturites et indicateurs de defaut sont synthetiques.
 - Les effets de discounting ne sont pas encore modelises.
@@ -182,13 +214,15 @@ La logique metier est centralisee dans `modules/`. L'interface Streamlit orchest
 - Pas de versioning detaille des overlays.
 - Pas de calcul de cash-flows actualises.
 - Pas de gestion multi-entites ou multi-devises.
+- Les controles de coherence restent simples et ne remplacent pas une gouvernance IFRS 9 complete.
+- Les profils de demo ne sont pas parametrables via une interface d'administration.
 
-## Prochaines etapes V0.6
+## Prochaines etapes V0.7
 
-- Polish commercial pour une demonstration client.
-- Controles de coherence metier avances.
-- Amelioration de la mise en page de la note comite.
+- Packaging et documentation utilisateur.
+- Preparation d'une version demo distribuable.
+- Guide de demonstration client avec script commercial.
+- Amelioration de la mise en page de la note comite et des exports.
 - Versioning persistant des runs.
-- Preparation d'un jeu de scenarios de demo guide.
 - Formaliser un dictionnaire de donnees et une validation de schema.
 - Enrichir les graphiques par produit, secteur, pays et vintage.

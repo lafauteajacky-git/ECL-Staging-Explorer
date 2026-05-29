@@ -14,6 +14,13 @@ PRODUCT_TYPES = ["Mortgage", "SME term loan", "Corporate loan", "Consumer loan",
 SECTORS = ["Households", "Manufacturing", "Retail", "Real estate", "Technology", "Energy"]
 COUNTRIES = ["FR", "DE", "IT", "ES", "BE", "NL"]
 RATINGS = np.arange(1, 11)
+DEMO_PORTFOLIO_PROFILES = [
+    "Balanced Portfolio",
+    "Low Risk Portfolio",
+    "Deteriorated Portfolio",
+    "Data Quality Issues Portfolio",
+    "CRE Stress Portfolio",
+]
 
 
 def generate_portfolio(n_exposures: int = 1_000, seed: int = 42) -> pd.DataFrame:
@@ -64,3 +71,95 @@ def generate_portfolio(n_exposures: int = 1_000, seed: int = 42) -> pd.DataFrame
     )
     portfolio["initial_stage"] = "Stage 1"
     return portfolio
+
+
+def generate_demo_portfolio(
+    profile: str = "Balanced Portfolio",
+    n_exposures: int = 1_000,
+    seed: int = 42,
+) -> pd.DataFrame:
+    """Generate a synthetic portfolio shaped for a client demonstration profile.
+
+    The profiles are pedagogical and only adjust fictional data distributions.
+    They are not calibrated on real banking observations.
+    """
+    if profile not in DEMO_PORTFOLIO_PROFILES:
+        raise ValueError(f"Unknown demo portfolio profile: {profile}")
+
+    portfolio = generate_portfolio(n_exposures=n_exposures, seed=seed)
+    rng = np.random.default_rng(seed + 10_000)
+
+    if profile == "Balanced Portfolio":
+        return portfolio
+    if profile == "Low Risk Portfolio":
+        return _apply_low_risk_profile(portfolio, rng)
+    if profile == "Deteriorated Portfolio":
+        return _apply_deteriorated_profile(portfolio, rng)
+    if profile == "Data Quality Issues Portfolio":
+        return _apply_data_quality_profile(portfolio, rng)
+    if profile == "CRE Stress Portfolio":
+        return _apply_cre_stress_profile(portfolio, rng)
+    return portfolio
+
+
+def _apply_low_risk_profile(portfolio: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
+    result = portfolio.copy()
+    result["origination_rating"] = rng.choice([1, 2, 3, 4, 5], size=len(result), p=[0.18, 0.25, 0.28, 0.20, 0.09])
+    result["current_rating"] = np.clip(result["origination_rating"] + rng.choice([-1, 0, 1], size=len(result), p=[0.15, 0.75, 0.10]), 1, 10)
+    result["pd_12m"] = np.round(np.clip(result["pd_12m"] * 0.45, 0.0002, 0.08), 5)
+    result["pd_lifetime"] = np.round(np.maximum(result["pd_12m"] * rng.uniform(1.4, 2.8, size=len(result)), result["pd_12m"]), 5)
+    result["lgd"] = np.round(np.clip(result["lgd"] * 0.8, 0.10, 0.45), 4)
+    result["days_past_due"] = rng.choice([0, 5, 15, 25], size=len(result), p=[0.78, 0.14, 0.06, 0.02])
+    result["default_flag"] = False
+    result["forbearance_flag"] = rng.random(len(result)) < 0.015
+    result["watchlist_flag"] = rng.random(len(result)) < 0.025
+    return result
+
+
+def _apply_deteriorated_profile(portfolio: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
+    result = portfolio.copy()
+    downgrade = rng.choice([0, 1, 2, 3, 4], size=len(result), p=[0.10, 0.22, 0.32, 0.24, 0.12])
+    result["current_rating"] = np.clip(result["origination_rating"] + downgrade, 1, 10)
+    result["pd_12m"] = np.round(np.clip(result["pd_12m"] * rng.uniform(1.35, 2.35, size=len(result)), 0.001, 0.65), 5)
+    result["pd_lifetime"] = np.round(np.clip(result["pd_12m"] * rng.uniform(1.7, 4.5, size=len(result)), result["pd_12m"], 0.98), 5)
+    result["lgd"] = np.round(np.clip(result["lgd"] * rng.uniform(1.05, 1.35, size=len(result)), 0.20, 0.85), 4)
+    result["days_past_due"] = rng.choice([0, 15, 25, 30, 45, 60, 85, 90, 120], size=len(result), p=[0.34, 0.12, 0.08, 0.14, 0.10, 0.08, 0.04, 0.06, 0.04])
+    result["default_flag"] = (result["days_past_due"] >= 90) | (rng.random(len(result)) < 0.05)
+    result["forbearance_flag"] = rng.random(len(result)) < 0.16
+    result["watchlist_flag"] = rng.random(len(result)) < 0.22
+    return result
+
+
+def _apply_data_quality_profile(portfolio: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
+    result = _apply_deteriorated_profile(portfolio, rng)
+    n = len(result)
+    missing_rating = rng.choice(result.index, size=max(1, int(n * 0.05)), replace=False)
+    missing_pd = rng.choice(result.index, size=max(1, int(n * 0.04)), replace=False)
+    missing_lgd = rng.choice(result.index, size=max(1, int(n * 0.03)), replace=False)
+    invalid_ead = rng.choice(result.index, size=max(1, int(n * 0.02)), replace=False)
+    invalid_dpd = rng.choice(result.index, size=max(1, int(n * 0.015)), replace=False)
+    ltv_without_collateral = rng.choice(result.index, size=max(1, int(n * 0.04)), replace=False)
+
+    result.loc[missing_rating, "current_rating"] = np.nan
+    result.loc[missing_pd, ["pd_12m", "pd_lifetime"]] = np.nan
+    result.loc[missing_lgd, "lgd"] = np.nan
+    result.loc[invalid_ead, "ead"] = -result.loc[invalid_ead, "ead"].abs()
+    result.loc[invalid_dpd, "days_past_due"] = -5
+    result.loc[ltv_without_collateral, "collateral_flag"] = False
+    result.loc[ltv_without_collateral, "ltv"] = rng.uniform(0.35, 1.4, size=len(ltv_without_collateral)).round(4)
+    return result
+
+
+def _apply_cre_stress_profile(portfolio: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
+    result = portfolio.copy()
+    cre_share = rng.random(len(result)) < 0.45
+    result.loc[cre_share, "sector"] = "Real estate"
+    result.loc[cre_share, "product_type"] = rng.choice(["Corporate loan", "Mortgage"], size=int(cre_share.sum()), p=[0.65, 0.35])
+    result.loc[cre_share, "ead"] = np.round(result.loc[cre_share, "ead"] * rng.uniform(1.25, 2.10, size=int(cre_share.sum())), 2)
+    result.loc[cre_share, "current_rating"] = np.clip(result.loc[cre_share, "origination_rating"] + rng.choice([1, 2, 3], size=int(cre_share.sum()), p=[0.40, 0.40, 0.20]), 1, 10)
+    result.loc[cre_share, "pd_12m"] = np.round(np.clip(result.loc[cre_share, "pd_12m"] * 1.65, 0.001, 0.60), 5)
+    result.loc[cre_share, "pd_lifetime"] = np.round(np.clip(result.loc[cre_share, "pd_lifetime"] * 1.55, result.loc[cre_share, "pd_12m"], 0.98), 5)
+    result.loc[cre_share, "lgd"] = np.round(np.clip(result.loc[cre_share, "lgd"] * 1.15, 0.20, 0.85), 4)
+    result.loc[cre_share, "watchlist_flag"] = rng.random(int(cre_share.sum())) < 0.28
+    result.loc[cre_share, "forbearance_flag"] = rng.random(int(cre_share.sum())) < 0.12
+    return result

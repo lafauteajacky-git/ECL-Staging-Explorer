@@ -1,4 +1,6 @@
 import pandas as pd
+from openpyxl import load_workbook
+from io import BytesIO
 
 from modules.reporting import (
     aggregate_ecl_by_dimension,
@@ -88,3 +90,23 @@ def test_excel_export_accepts_audit_trail_and_committee_summary():
     )
 
     assert len(payload) > 0
+
+
+def test_excel_export_includes_v06_business_demo_sheets():
+    payload = build_excel_export_bytes(
+        pd.DataFrame({"loan_id": ["LN-1"]}),
+        pd.DataFrame({"loan_id": ["LN-1"], "check_code": ["MISSING_PD"]}),
+        pd.DataFrame({"loan_id": ["LN-1"], "stage": ["Stage 1"]}),
+        pd.DataFrame({"loan_id": ["LN-1"], "ecl": [10]}),
+        pd.DataFrame({"metric": ["Business consistency score"], "value": [0.99]}),
+        {"run_summary": pd.DataFrame({"item": ["run"], "value": ["RUN-1"]})},
+        business_consistency=pd.DataFrame({"loan_id": ["LN-1"], "severity": ["Warning"]}),
+        demo_storyline=pd.DataFrame({"step": [1], "title": ["Portfolio"]}),
+        client_discussion_points=pd.DataFrame({"discussion_point": ["Question client"]}),
+    )
+
+    workbook = load_workbook(BytesIO(payload), read_only=True)
+
+    assert "Business Consistency" in workbook.sheetnames
+    assert "Demo Storyline" in workbook.sheetnames
+    assert "Client Discussion Points" in workbook.sheetnames

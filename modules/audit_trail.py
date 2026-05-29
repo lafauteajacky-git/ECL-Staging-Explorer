@@ -1,4 +1,4 @@
-"""Detailed audit trail helpers for ECL Staging Explorer V0.5."""
+"""Detailed audit trail helpers for ECL Staging Explorer V0.6."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from datetime import datetime
 import pandas as pd
 
 
-APP_VERSION = "V0.5"
+APP_VERSION = "V0.6"
 
 
 def generate_run_id(run_datetime: datetime | None = None) -> str:
@@ -32,6 +32,10 @@ def build_audit_trail(
     top_contributors: pd.DataFrame,
     staging_rules: pd.DataFrame,
     ecl_assumptions: pd.DataFrame,
+    business_consistency_summary: dict | None = None,
+    business_alerts: pd.DataFrame | None = None,
+    client_discussion_points: list[str] | None = None,
+    demo_profile: str | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Build a detailed, Excel-friendly audit trail."""
     warnings = [
@@ -46,6 +50,7 @@ def build_audit_trail(
             {"field": "run_id", "value": run_id},
             {"field": "run_datetime", "value": run_datetime.strftime("%Y-%m-%d %H:%M:%S")},
             {"field": "app_version", "value": APP_VERSION},
+            {"field": "demo_profile", "value": demo_profile or "Not specified"},
             {"field": "exposure_count", "value": metrics["exposure_count"]},
             {"field": "total_ead", "value": metrics["total_ead"]},
             {"field": "model_ecl_before_scenario", "value": metrics["total_ecl"]},
@@ -55,9 +60,21 @@ def build_audit_trail(
             {"field": "final_ecl_after_overlay", "value": overlay_metrics["ecl_after_overlay"]},
             {"field": "data_quality_issue_count", "value": len(data_quality_findings)},
             {"field": "review_required_count", "value": len(review_cases)},
+            {
+                "field": "business_consistency_score",
+                "value": (business_consistency_summary or {}).get("business_consistency_score", "Not calculated"),
+            },
+            {
+                "field": "business_alert_count",
+                "value": (business_consistency_summary or {}).get("business_alert_count", "Not calculated"),
+            },
+            {
+                "field": "business_critical_alert_count",
+                "value": (business_consistency_summary or {}).get("business_critical_alert_count", "Not calculated"),
+            },
         ]
     )
-    return {
+    audit_trail = {
         "run_summary": run_summary,
         "staging_rules": staging_rules,
         "ecl_assumptions": ecl_assumptions,
@@ -71,3 +88,13 @@ def build_audit_trail(
         "ecl_by_stage": ecl_by_stage,
         "methodological_warnings": pd.DataFrame({"warning": warnings}),
     }
+    if business_consistency_summary is not None:
+        audit_trail["business_consistency_summary"] = pd.DataFrame(
+            [{"metric": metric, "value": value} for metric, value in business_consistency_summary.items()]
+        )
+    if business_alerts is not None:
+        audit_trail["business_consistency_alerts"] = business_alerts.copy()
+        audit_trail["critical_business_alerts"] = business_alerts.loc[business_alerts["severity"].eq("Critical")].copy()
+    if client_discussion_points is not None:
+        audit_trail["client_discussion_points"] = pd.DataFrame({"discussion_point": client_discussion_points})
+    return audit_trail
