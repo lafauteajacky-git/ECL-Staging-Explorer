@@ -6,6 +6,8 @@ from io import BytesIO
 
 import pandas as pd
 
+from modules.demo_config import DEMO_DISCLAIMER_FR
+
 
 REQUIRED_SECTIONS = [
     "## 1. Resume executif",
@@ -81,6 +83,8 @@ def generate_committee_summary(
 
 Run ID: {run_id}
 Version de demonstration: {demo_profile or "Non specifie"}
+
+Disclaimer: {DEMO_DISCLAIMER_FR}
 
 ## 1. Resume executif
 

@@ -9,6 +9,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from modules.demo_config import DEMO_DISCLAIMER_FR
+
 
 OUTPUT_DIR = Path("outputs")
 CRITICAL_DQ_CODES = {"MISSING_RATING", "MISSING_PD", "MISSING_LGD", "INVALID_EAD"}
@@ -385,6 +387,7 @@ def _write_excel_export(
     client_discussion_points: pd.DataFrame | None = None,
 ) -> None:
     with pd.ExcelWriter(target, engine="openpyxl") as writer:
+        pd.DataFrame({"disclaimer": [DEMO_DISCLAIMER_FR]}).to_excel(writer, sheet_name="Disclaimer", index=False)
         portfolio.to_excel(writer, sheet_name="Portfolio", index=False)
         data_quality_findings.to_excel(writer, sheet_name="Data Quality Issues", index=False)
         staging_results.to_excel(writer, sheet_name="Staging Results", index=False)

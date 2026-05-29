@@ -24,6 +24,7 @@ from modules.committee_summary import build_docx_bytes, generate_committee_summa
 from modules.data_quality import missing_required_columns
 from modules.data_quality import run_data_quality_checks, summarize_quality_findings
 from modules.data_quality import calculate_quality_score
+from modules.demo_config import APP_NAME, DEMO_DISCLAIMER_FR, EXPORT_FILE_PREFIX
 from modules.ecl_calculator import calculate_ecl
 from modules.overlay_engine import (
     PREDEFINED_OVERLAYS,
@@ -59,7 +60,7 @@ from modules.scenario_engine import (
 from modules.staging_engine import assign_stage
 
 
-st.set_page_config(page_title="ECL Staging Explorer", layout="wide")
+st.set_page_config(page_title=APP_NAME, layout="wide")
 
 
 def apply_auria_theme() -> None:
@@ -287,8 +288,9 @@ def render_brand_header(run_id: str | None = None) -> None:
         f"""
         <section class="auria-hero">
             <div class="auria-kicker">Auria Advisory</div>
-            <h1>ECL Staging Explorer</h1>
+            <h1>{APP_NAME}</h1>
             <p>IFRS 9 ECL & Staging Demonstrator pour transformer le provisionnement IFRS 9 en un outil de pilotage transparent, explicable et auditable.</p>
+            <p><strong>{DEMO_DISCLAIMER_FR}</strong></p>
             {run_line}
         </section>
         """,
@@ -646,7 +648,7 @@ def main() -> None:
         )
         if st.button("Exporter dans le dossier outputs"):
             try:
-                export_file_name = f"{run_id}_ecl_staging_explorer_results.xlsx"
+                export_file_name = f"{EXPORT_FILE_PREFIX}_{run_id}.xlsx"
                 output_path = export_results_to_excel(
                     portfolio,
                     findings,
@@ -671,7 +673,7 @@ def main() -> None:
         st.download_button(
             "Telecharger les resultats Excel",
             data=export_bytes,
-            file_name=f"{run_id}_ecl_staging_explorer_results.xlsx",
+            file_name=f"{EXPORT_FILE_PREFIX}_{run_id}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
@@ -721,7 +723,7 @@ def render_home(metrics: dict[str, float] | None, demo_profile: str | None = Non
         "Ce demonstrateur illustre de maniere simple et pedagogique la chaine IFRS 9 : qualite des donnees, "
         "staging, calcul des pertes attendues et restitution executive pour discussion client."
     )
-    st.warning("Donnees 100% synthetiques - demonstrateur non destine a la production.")
+    st.warning(DEMO_DISCLAIMER_FR)
 
     if demo_profile:
         st.info(f"Profil de demo selectionne : {demo_profile}. {PROFILE_CONTEXT.get(demo_profile, '')}")

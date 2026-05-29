@@ -44,7 +44,15 @@ pytest
 - `modules/business_checks.py` : controles de coherence metier, storyline de demo et discussion points.
 - `modules/audit_trail.py` : audit trail detaille du run et generation du run_id.
 - `modules/committee_summary.py` : note de synthese comite provisionnement.
+- `modules/demo_config.py` : nom de l'application, disclaimer demo safe et prefixe d'export.
 - `modules/reporting.py` : exports et helpers de reporting.
+
+## Documentation
+
+- `docs/USER_GUIDE.md` : guide utilisateur.
+- `docs/DEMO_SCRIPT.md` : script de demonstration client.
+- `docs/METHODOLOGY_NOTES.md` : hypotheses simplificatrices.
+- `docs/ROADMAP.md` : evolutions possibles.
 
 ## Tests attendus
 

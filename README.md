@@ -1,144 +1,47 @@
 # ECL Staging Explorer
 
-ECL Staging Explorer est un demonstrateur MVP pour presenter la logique IFRS 9 de staging, les controles de qualite des donnees et un calcul simplifie des pertes de credit attendues.
+**ECL Staging Explorer** est un demonstrateur Streamlit pour presenter, de maniere pedagogique, la chaine IFRS 9 de staging et de calcul d'ECL.
 
-Le projet utilise uniquement des donnees synthetiques. Il ne doit pas etre utilise comme moteur de production, ni comme implementation normative complete d'IFRS 9.
+Baseline commerciale : **IFRS 9 ECL & Staging Demonstrator**.
 
-L'application est prevue pour etre deployee sur Streamlit Community Cloud avec `app.py` comme fichier principal.
+Message principal : transformer le provisionnement IFRS 9 en un outil de pilotage transparent, explicable et auditable.
 
-## Fonctionnalites V0.6
+## Objectif du demonstrateur
 
-- Generation d'un portefeuille synthetique d'environ 1 000 expositions.
-- Chargement optionnel d'un fichier CSV ou Excel compatible avec le schema MVP.
-- Controles simples de qualite des donnees.
-- Score simple de qualite des donnees.
-- Affectation Stage 1, Stage 2, Stage 3 avec regles transparentes.
-- Commentaire metier expliquant la regle de staging declenchante.
-- Calcul ECL simplifie par stage.
-- Interface organisee pour une demonstration client : Accueil, Portefeuille, Data Quality, Staging, ECL Calculation, Dashboard, Export.
-- Dashboard executif avec KPI, graphiques, management insights et audit view simplifiee.
-- Marquage des expositions necessitant une revue metier.
-- Scenarios macroeconomiques IFRS 9 Baseline, Downside et Upside.
-- ECL par scenario, ECL ponderee et impacts vs baseline.
-- Overlays manageriaux predefinis, activables et traces.
-- ECL avant overlay, montant d'overlay et ECL apres overlay.
-- Audit trail detaille avec run_id, hypotheses, scenarios, overlays et avertissements methodologiques.
-- Note de synthese automatique pour comite provisionnement, exportable en Markdown et Word.
-- Profils de portefeuille de demonstration : Balanced, Low Risk, Deteriorated, Data Quality Issues et CRE Stress.
-- Controles de coherence metier avances avec score, alertes et criticite.
-- Demo Storyline en 6 etapes pour fluidifier le rendez-vous client.
-- Client Discussion Points generes automatiquement.
-- Interface visuelle alignee sur une charte Auria Advisory : bleu nuit, peche, fond creme, cartes executive et rendu plus premium.
-- Export Excel multi-onglets dans `outputs/` et telechargement depuis l'application.
-- Tests unitaires simples pour les modules metier.
+Le demonstrateur aide a illustrer en rendez-vous client ou en atelier interne :
 
-## Parcours de demonstration V0.6
+- la generation d'un portefeuille synthetique ;
+- les controles de qualite des donnees ;
+- les controles de coherence metier ;
+- l'affectation Stage 1 / Stage 2 / Stage 3 ;
+- le calcul ECL simplifie ;
+- l'impact de scenarios macroeconomiques ;
+- les overlays manageriaux ;
+- le dashboard executif ;
+- l'audit trail ;
+- la note de synthese comite ;
+- les exports Excel multi-onglets.
 
-1. Choisir un `Demo Portfolio Profile` et generer le portefeuille synthetique.
-2. Controler la qualite des donnees.
-3. Verifier la coherence metier des resultats.
-4. Determiner le staging IFRS 9 et calculer les ECL.
-5. Simuler les scenarios macroeconomiques et appliquer les overlays.
-6. Presenter le dashboard, l'audit trail, la note comite et les exports.
+## Avertissement sur les donnees
 
-## Profils de portefeuille V0.6
+**Donnees 100% synthetiques - demonstrateur a vocation pedagogique et commerciale. Ne pas utiliser pour la production, la comptabilisation ou le reporting reglementaire.**
 
-- `Balanced Portfolio` : profil equilibre pour illustrer le parcours de bout en bout.
-- `Low Risk Portfolio` : profil sain avec faible migration Stage 2/3 et taux de couverture limite.
-- `Deteriorated Portfolio` : profil degrade pour illustrer hausse ECL, migration et concentration des risques.
-- `Data Quality Issues Portfolio` : profil oriente anomalies et prudence methodologique.
-- `CRE Stress Portfolio` : profil concentre immobilier commercial pour illustrer stress sectoriel et overlays.
+Aucune donnee bancaire reelle ne doit etre integree dans ce projet sans cadrage specifique, anonymisation, autorisation et gouvernance adaptee.
 
-## KPI disponibles
+## Fonctionnalites principales V0.7
 
-- EAD totale.
-- ECL totale.
-- Taux de couverture global ECL / EAD.
-- Nombre d'expositions.
-- Part des expositions en Stage 2.
-- Part des expositions en Stage 3.
-- Nombre d'anomalies data quality.
-- Nombre de cas necessitant une revue.
-- ECL baseline.
-- ECL downside.
-- ECL upside.
-- ECL ponderee.
-- Impact downside vs baseline.
-- Impact ECL ponderee vs baseline.
-- ECL avant overlay.
-- Montant total des overlays.
-- ECL apres overlay.
-- Variation overlays en montant et en pourcentage.
-- Top overlay contributeur.
-- Score de coherence metier.
-- Nombre d'alertes de coherence metier.
-- Nombre d'alertes critiques.
-
-## Visualisations V0.2
-
-- EAD par stage.
-- ECL par stage.
-- Taux de couverture par stage.
-- ECL par produit.
-- ECL par secteur.
-- Distribution des ratings actuels.
-- Matrice Stage initial / Stage recalcule.
-- Top 10 des expositions contributrices a l'ECL.
-- ECL par scenario.
-- Contribution ponderee de chaque scenario.
-- Comparaison baseline vs ECL ponderee.
-- Impact downside par stage.
-- Waterfall ECL avant overlay vers ECL apres overlay.
-- Montant d'overlay par type.
-- Montant d'overlay par stage.
-- Top 10 des expositions les plus impactees par les overlays.
-
-## Controles de coherence metier V0.6
-
-Les controles identifient notamment :
-
-- Stage 1 avec defaut ou DPD >= 90.
-- Stage 1 avec forbearance ou watchlist actif.
-- Stage 2 sans justification claire.
-- Stage 3 sans defaut, DPD >= 90 ou indicateur de depreciation.
-- PD lifetime inferieure a la PD 12M.
-- PD ou LGD hors bornes 0%-100%.
-- ECL negative ou tres elevee par rapport a l'EAD.
-- Rating ameliore avec maintien en Stage 2 ou Stage 3.
-
-Le score de coherence est un indicateur pedagogique : nombre de controles passes rapporte au nombre total de controles attendus.
-
-## Scenarios macroeconomiques V0.3
-
-Les scenarios sont volontairement simples et explicables :
-
-| Scenario | Ponderation | Multiplicateur PD | Multiplicateur LGD |
-| --- | ---: | ---: | ---: |
-| Baseline | 60% | 1.00 | 1.00 |
-| Downside | 30% | 1.35 | 1.15 |
-| Upside | 10% | 0.85 | 0.95 |
-
-Les ponderations et multiplicateurs sont modifiables dans l'interface. Les PD et LGD ajustees sont capees a 100%.
-
-## Overlays manageriaux V0.4
-
-Les overlays sont des ajustements pedagogiques appliques en pourcentage de l'ECL avant overlay. Si plusieurs overlays s'appliquent a une meme exposition, leurs montants sont additionnes sans dupliquer la ligne.
-
-Overlays predefinis :
-
-- `Commercial Real Estate Stress` : +15% d'ECL sur le secteur Real estate.
-- `SME Energy Sensitivity` : +20% d'ECL sur les expositions SME du secteur Energy.
-- `Data Quality Uncertainty` : +10% d'ECL sur les expositions avec anomalie data quality critique.
-- `Stage 2 Prudence Overlay` : +5% d'ECL sur les expositions Stage 2.
-- `Stage 3 Recovery Risk` : +10% d'ECL sur les expositions Stage 3.
-
-## Audit trail et note comite V0.5
-
-Chaque run recoit un identifiant du type `RUN-YYYYMMDD-HHMMSS`. Cet identifiant apparait dans l'application, dans l'export Excel et dans la note de synthese.
-
-L'audit trail detaille centralise la date du run, la version de l'application, les hypotheses de staging et d'ECL, les parametres de scenarios, les overlays actives, les anomalies data quality, les expositions a revoir, les top contributeurs et les avertissements methodologiques.
-
-La note de synthese comite est generee automatiquement a partir des resultats calcules. Elle est factuelle, orientee comite provisionnement et exportable en `.md` ou `.docx`.
+- Profils de portefeuille de demonstration : `Balanced`, `Low Risk`, `Deteriorated`, `Data Quality Issues`, `CRE Stress`.
+- Data quality checks et score qualite.
+- Business consistency checks et score de coherence metier.
+- Moteur de staging IFRS 9 simplifie et explicable.
+- Calcul ECL par stage.
+- Scenarios macro `Baseline`, `Downside`, `Upside`.
+- Overlays manageriaux predefinis.
+- Dashboard executif avec KPI, graphiques, insights et discussion points.
+- Audit trail detaille avec run_id.
+- Note de synthese comite exportable en Markdown et Word.
+- Export Excel multi-onglets avec disclaimer.
+- Documentation utilisateur, script de demo, notes methodologiques et roadmap.
 
 ## Installation
 
@@ -147,6 +50,8 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
+
+Si `python` n'est pas reconnu sous Windows, verifier l'installation Python ou utiliser le lanceur configure sur votre poste.
 
 ## Lancement de l'application
 
@@ -160,69 +65,118 @@ streamlit run app.py
 pytest
 ```
 
-## Architecture
+## Commandes Makefile
+
+Si `make` est disponible :
+
+```powershell
+make install
+make run
+make test
+make clean-outputs
+```
+
+Commandes equivalentes :
+
+```powershell
+pip install -r requirements.txt
+streamlit run app.py
+pytest
+Remove-Item outputs\*.xlsx, outputs\*.log, outputs\*.md, outputs\*.docx -ErrorAction SilentlyContinue
+```
+
+## Parcours de demonstration recommande
+
+1. Ouvrir `Accueil` et rappeler le cadre demo safe.
+2. Choisir un `Demo Portfolio Profile`.
+3. Revoir le portefeuille synthetique.
+4. Lire les controles `Data Quality`.
+5. Lire les controles `Business Consistency`.
+6. Presenter le `Staging`.
+7. Presenter le calcul `ECL Calculation`.
+8. Simuler un scenario macro downside.
+9. Activer/desactiver des overlays.
+10. Lire le `Dashboard` et les `Client Discussion Points`.
+11. Ouvrir l'`Audit Trail`.
+12. Generer la `Committee Summary`.
+13. Exporter le fichier Excel.
+
+## Profils de portefeuille disponibles
+
+- `Balanced Portfolio` : profil equilibre.
+- `Low Risk Portfolio` : faible risque, faible migration Stage 2/3.
+- `Deteriorated Portfolio` : deterioration du risque, hausse Stage 2/3.
+- `Data Quality Issues Portfolio` : anomalies de donnees plus visibles.
+- `CRE Stress Portfolio` : concentration immobilier commercial et stress sectoriel.
+
+## Structure du projet
 
 ```text
 app.py
 requirements.txt
 README.md
 AGENTS.md
+Makefile
+.env.example
 data/
+docs/
+  MVP_SPEC.md
+  USER_GUIDE.md
+  DEMO_SCRIPT.md
+  METHODOLOGY_NOTES.md
+  ROADMAP.md
+  DEPLOYMENT_PROCEDURE.md
 modules/
   sample_data.py
   data_quality.py
+  business_checks.py
   staging_engine.py
   ecl_calculator.py
   scenario_engine.py
   overlay_engine.py
-  business_checks.py
+  reporting.py
   audit_trail.py
   committee_summary.py
-  reporting.py
+  demo_config.py
 outputs/
 tests/
 ```
 
-La logique metier est centralisee dans `modules/`. L'interface Streamlit orchestre les modules et gere l'affichage, les graphiques et l'export.
+La logique metier est dans `modules/`. L'interface `app.py` orchestre les modules, les graphiques et les exports.
 
-## Hypotheses simplificatrices
+## Documentation
 
-- Les ratings sont representes par des notes numeriques de 1 a 10.
-- Une hausse de rating numerique correspond a une degradation du risque.
-- Le Stage 3 est prioritaire sur le Stage 2.
-- Le Stage 1 utilise la PD 12 mois, le Stage 2 la PD lifetime, le Stage 3 une PD de 100 %.
-- Les scenarios macro appliquent des multiplicateurs simples sur PD et LGD.
-- Les ponderations par defaut sont 60% Baseline, 30% Downside et 10% Upside.
-- Les overlays sont appliques sur l'ECL avant overlay et s'additionnent en montant.
-- Les overlays ne modifient pas le stage, la PD, la LGD ou l'EAD sous-jacents.
-- La note comite est generee automatiquement a partir des resultats calcules et reste factuelle.
-- Les profils de portefeuille sont des jeux synthetiques orientes demonstration, non calibres sur des donnees reelles.
-- Le score de coherence metier est un score de plausibilite pedagogique, pas un indicateur de validation de modele.
-- Les discussion points sont generes automatiquement a partir du profil et des resultats, sans jugement expert externe.
-- Le run_id est horodate mais ne constitue pas encore un audit trail versionne complet.
-- Les PD, LGD, EAD, maturites et indicateurs de defaut sont synthetiques.
-- Les effets de discounting ne sont pas encore modelises.
+- [User Guide](docs/USER_GUIDE.md)
+- [Demo Script](docs/DEMO_SCRIPT.md)
+- [Methodology Notes](docs/METHODOLOGY_NOTES.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Deployment Procedure](docs/DEPLOYMENT_PROCEDURE.md)
 
 ## Limites du MVP
 
-- Pas de moteur de production IFRS 9.
-- Pas de validation avancee de schema en entree.
-- Pas de stockage persistant des historiques de runs.
-- Pas de modele macroeconometrique avance.
-- Pas de scenarios sectoriels ou geographiques.
+- Pas de moteur IFRS 9 de production.
+- Pas de donnees reelles.
+- Pas de modele macroeconometrique.
+- Pas de courbes PD lifetime calibrees.
+- Pas de cash-flows actualises.
+- Pas de collateraux avances.
 - Pas de workflow d'approbation des overlays.
-- Pas de versioning detaille des overlays.
-- Pas de calcul de cash-flows actualises.
-- Pas de gestion multi-entites ou multi-devises.
-- Les controles de coherence restent simples et ne remplacent pas une gouvernance IFRS 9 complete.
-- Les profils de demo ne sont pas parametrables via une interface d'administration.
+- Pas de stockage persistant des runs.
+- Pas de comparaison historisee des runs.
+- Pas de gestion multi-entites, multi-devises ou multi-utilisateurs.
 
-## Prochaines etapes V0.7
+## Roadmap
 
-- Packaging et documentation utilisateur.
-- Preparation d'une version demo distribuable.
-- Guide de demonstration client avec script commercial.
-- Amelioration de la mise en page de la note comite et des exports.
-- Versioning persistant des runs.
-- Formaliser un dictionnaire de donnees et une validation de schema.
-- Enrichir les graphiques par produit, secteur, pays et vintage.
+Les prochaines evolutions possibles sont detaillees dans [docs/ROADMAP.md](docs/ROADMAP.md).
+
+Priorite V0.8 proposee :
+
+- deploiement local / cloud leger ;
+- packaging demo ;
+- support de presentation commerciale ;
+- checklist de demonstration ;
+- tests end-to-end Streamlit.
+
+## Disclaimer methodologique
+
+Ce projet est un demonstrateur. Les regles, parametres, scenarios et overlays sont simplificateurs. Toute implementation reelle doit etre adaptee aux politiques internes de la banque, aux modeles valides, aux definitions de defaut et SICR, au cadre de controle interne, aux exigences audit et aux obligations reglementaires applicables.

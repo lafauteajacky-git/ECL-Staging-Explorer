@@ -32,7 +32,11 @@ secrets/
 # Generated outputs and logs
 outputs/*.xlsx
 outputs/*.log
+outputs/*.md
+outputs/*.docx
+outputs/*.tmp
 *.log
+*.tmp
 
 # Local backups / snapshots
 V0/

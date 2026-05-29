@@ -6,8 +6,10 @@ from datetime import datetime
 
 import pandas as pd
 
+from modules.demo_config import DEMO_DISCLAIMER_FR
 
-APP_VERSION = "V0.6"
+
+APP_VERSION = "V0.7"
 
 
 def generate_run_id(run_datetime: datetime | None = None) -> str:
@@ -50,6 +52,7 @@ def build_audit_trail(
             {"field": "run_id", "value": run_id},
             {"field": "run_datetime", "value": run_datetime.strftime("%Y-%m-%d %H:%M:%S")},
             {"field": "app_version", "value": APP_VERSION},
+            {"field": "demo_disclaimer", "value": DEMO_DISCLAIMER_FR},
             {"field": "demo_profile", "value": demo_profile or "Not specified"},
             {"field": "exposure_count", "value": metrics["exposure_count"]},
             {"field": "total_ead", "value": metrics["total_ead"]},
