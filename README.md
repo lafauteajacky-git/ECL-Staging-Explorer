@@ -24,6 +24,7 @@ L'application est prevue pour etre deployee sur Streamlit Community Cloud avec `
 - ECL avant overlay, montant d'overlay et ECL apres overlay.
 - Audit trail detaille avec run_id, hypotheses, scenarios, overlays et avertissements methodologiques.
 - Note de synthese automatique pour comite provisionnement, exportable en Markdown et Word.
+- Interface visuelle alignee sur une charte Auria Advisory : bleu nuit, peche, fond creme, cartes executive et rendu plus premium.
 - Export Excel multi-onglets dans `outputs/` et telechargement depuis l'application.
 - Tests unitaires simples pour les modules metier.
 

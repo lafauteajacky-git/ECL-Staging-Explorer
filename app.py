@@ -52,6 +52,240 @@ from modules.staging_engine import assign_stage
 st.set_page_config(page_title="ECL Staging Explorer", layout="wide")
 
 
+def apply_auria_theme() -> None:
+    """Apply Auria-inspired visual styling to the Streamlit shell."""
+    px.defaults.template = "plotly_white"
+    px.defaults.color_discrete_sequence = ["#0b2b46", "#f1a986", "#6d7885", "#102f4a", "#f7c6ae", "#14664a"]
+    st.markdown(
+        """
+        <style>
+        :root {
+            --auria-navy: #0b2b46;
+            --auria-navy-2: #102f4a;
+            --auria-ink: #061a2d;
+            --auria-peach: #f1a986;
+            --auria-peach-2: #f7c6ae;
+            --auria-cream: #f8f4ef;
+            --auria-cream-2: #fffaf5;
+            --auria-grey: #6d7885;
+            --auria-line: rgba(11, 43, 70, 0.14);
+            --auria-card: rgba(255, 255, 255, 0.86);
+            --auria-shadow: 0 18px 44px rgba(11, 43, 70, 0.10);
+        }
+
+        html, body, [data-testid="stAppViewContainer"] {
+            color: var(--auria-ink);
+            font-family: "Inter", "Aptos", "Segoe UI", Arial, sans-serif;
+            background:
+                radial-gradient(circle at 8% 2%, rgba(241, 169, 134, 0.23), transparent 26rem),
+                radial-gradient(circle at 96% 10%, rgba(11, 43, 70, 0.12), transparent 24rem),
+                linear-gradient(180deg, var(--auria-cream-2), var(--auria-cream));
+        }
+
+        [data-testid="stAppViewContainer"]::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background-image:
+                linear-gradient(rgba(11, 43, 70, 0.045) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(11, 43, 70, 0.035) 1px, transparent 1px);
+            background-size: 44px 44px;
+            mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.62), transparent 72%);
+            z-index: 0;
+        }
+
+        [data-testid="stHeader"] {
+            background: rgba(255, 250, 245, 0.86);
+            border-bottom: 1px solid rgba(11, 43, 70, 0.10);
+            backdrop-filter: blur(14px);
+        }
+
+        [data-testid="stSidebar"] {
+            background: rgba(255, 250, 245, 0.94);
+            border-right: 1px solid var(--auria-line);
+        }
+
+        [data-testid="stSidebar"] h2,
+        [data-testid="stSidebar"] h3,
+        [data-testid="stSidebar"] label {
+            color: var(--auria-navy);
+            font-weight: 800;
+        }
+
+        .block-container {
+            padding-top: 2.25rem;
+            padding-bottom: 3rem;
+            max-width: 1380px;
+        }
+
+        .auria-hero {
+            position: relative;
+            overflow: hidden;
+            border-radius: 28px;
+            padding: 30px 34px;
+            margin-bottom: 22px;
+            color: #ffffff;
+            background:
+                radial-gradient(circle at 88% 22%, rgba(241, 169, 134, 0.42), transparent 15rem),
+                linear-gradient(135deg, #071d31, var(--auria-navy));
+            box-shadow: 0 24px 60px rgba(11, 43, 70, 0.16);
+        }
+
+        .auria-hero::after {
+            content: "";
+            position: absolute;
+            inset: auto -50px -90px auto;
+            width: 260px;
+            height: 260px;
+            border-radius: 50%;
+            background: rgba(241, 169, 134, 0.18);
+        }
+
+        .auria-kicker {
+            color: var(--auria-peach-2);
+            font-size: 0.78rem;
+            font-weight: 900;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .auria-hero h1 {
+            margin: 0;
+            color: #ffffff;
+            font-size: clamp(2.1rem, 4vw, 4.2rem);
+            font-weight: 850;
+            letter-spacing: 0;
+            line-height: 1.02;
+        }
+
+        .auria-hero p {
+            max-width: 780px;
+            margin: 14px 0 0;
+            color: rgba(255, 255, 255, 0.82);
+            font-size: 1.02rem;
+        }
+
+        .auria-run {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 18px;
+            padding: 9px 13px;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.92);
+            font-size: 0.82rem;
+            font-weight: 800;
+        }
+
+        h1, h2, h3 {
+            color: var(--auria-navy);
+            letter-spacing: 0;
+        }
+
+        div[data-testid="stMetric"],
+        [data-testid="stDataFrame"],
+        div[data-testid="stPlotlyChart"] {
+            border: 1px solid var(--auria-line);
+            border-radius: 18px;
+            background: var(--auria-card);
+            box-shadow: var(--auria-shadow);
+            padding: 12px;
+        }
+
+        div[data-testid="stMetric"] {
+            min-height: 112px;
+            padding: 18px 18px 14px;
+        }
+
+        div[data-testid="stMetric"] label,
+        div[data-testid="stMetric"] [data-testid="stMetricLabel"] {
+            color: var(--auria-grey);
+            font-size: 0.78rem;
+            font-weight: 850;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        div[data-testid="stMetricValue"] {
+            color: var(--auria-navy);
+            font-weight: 850;
+        }
+
+        button[kind="primary"],
+        div[data-testid="stDownloadButton"] button {
+            border: 1px solid var(--auria-navy) !important;
+            border-radius: 999px !important;
+            background: var(--auria-navy) !important;
+            color: #ffffff !important;
+            font-weight: 850 !important;
+            box-shadow: 0 12px 28px rgba(11, 43, 70, 0.16);
+        }
+
+        div[data-testid="stButton"] button {
+            border-radius: 999px;
+            border-color: rgba(11, 43, 70, 0.18);
+            color: var(--auria-navy);
+            font-weight: 800;
+        }
+
+        div[data-testid="stTabs"] button[role="tab"] {
+            border-radius: 999px;
+            color: var(--auria-navy);
+            font-weight: 850;
+            padding: 8px 16px;
+        }
+
+        div[data-testid="stTabs"] button[aria-selected="true"] {
+            background: var(--auria-navy);
+            color: #ffffff;
+        }
+
+        [data-testid="stAlert"] {
+            border-radius: 18px;
+            border: 1px solid rgba(241, 169, 134, 0.35);
+            box-shadow: 0 12px 28px rgba(11, 43, 70, 0.08);
+        }
+
+        .stMultiSelect [data-baseweb="tag"],
+        [data-baseweb="tag"] {
+            background: rgba(241, 169, 134, 0.18) !important;
+            color: var(--auria-navy) !important;
+            border-radius: 999px !important;
+        }
+
+        input, textarea, [data-baseweb="select"] > div {
+            border-radius: 14px !important;
+        }
+
+        hr {
+            border-color: var(--auria-line);
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_brand_header(run_id: str | None = None) -> None:
+    """Render a compact Auria-style brand header."""
+    run_line = f'<div class="auria-run">Run ID: {run_id} | Version: {APP_VERSION}</div>' if run_id else ""
+    st.markdown(
+        f"""
+        <section class="auria-hero">
+            <div class="auria-kicker">Auria Advisory</div>
+            <h1>ECL Staging Explorer</h1>
+            <p>IFRS 9 ECL & Staging Demonstrator pour explorer les donnees, le staging, les scenarios macro, les overlays et la documentation comite.</p>
+            {run_line}
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 @st.cache_data
 def load_synthetic_portfolio(n_exposures: int, seed: int) -> pd.DataFrame:
     """Cache synthetic generation for a smoother demo experience."""
@@ -71,8 +305,7 @@ def format_currency(value: float) -> str:
 
 
 def main() -> None:
-    st.title("ECL Staging Explorer")
-    st.caption("IFRS 9 ECL & Staging Demonstrator")
+    apply_auria_theme()
 
     with st.sidebar:
         st.header("Parametres")
@@ -197,7 +430,7 @@ def main() -> None:
     except Exception as exc:
         st.error(f"Calcul impossible : {exc}")
         st.stop()
-    st.caption(f"Run ID: {run_id} | Version: {APP_VERSION}")
+    render_brand_header(run_id)
 
     tab_home, tab_portfolio, tab_dq, tab_staging, tab_ecl, tab_macro, tab_overlays, tab_dashboard, tab_audit, tab_summary, tab_export = st.tabs(
         [
