@@ -289,19 +289,40 @@ def render_brand_header(run_id: str | None = None) -> None:
         <div style="
             display:flex;
             align-items:center;
+            gap:10px;
             margin: 0 0 18px;
+            color:#0b2b46;
         ">
-            <img
-                src="https://auria-advisory.fr/wp-content/uploads/2025/10/Logo-final-vertical-or-blanc-h.png"
-                alt="Auria Advisory"
+            <div
+                aria-label="Auria Advisory logo mark"
                 style="
-                    width: 154px;
-                    max-width: 42vw;
-                    height: auto;
-                    display: block;
-                    object-fit: contain;
-                "
-            />
+                    width:46px;
+                    height:46px;
+                    flex:0 0 46px;
+                    background-image:url('https://auria-advisory.fr/wp-content/uploads/2025/10/Logo-final-vertical-or-blanc-h.png');
+                    background-repeat:no-repeat;
+                    background-position:left center;
+                    background-size:150px auto;
+                ">
+            </div>
+            <div style="line-height:0.95;">
+                <div style="
+                    font-family:Georgia, 'Times New Roman', serif;
+                    font-size:1.88rem;
+                    line-height:0.95;
+                    font-weight:900;
+                    letter-spacing:0.055em;
+                    color:#0b2b46;
+                ">AURIA</div>
+                <div style="
+                    margin-top:4px;
+                    font-size:0.78rem;
+                    line-height:1;
+                    font-weight:900;
+                    letter-spacing:0.22em;
+                    color:#0b2b46;
+                ">ADVISORY</div>
+            </div>
         </div>
         <section style="
             position:relative;
