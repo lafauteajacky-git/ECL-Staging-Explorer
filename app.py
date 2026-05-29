@@ -283,16 +283,160 @@ def apply_auria_theme() -> None:
 
 def render_brand_header(run_id: str | None = None) -> None:
     """Render a compact Auria-style brand header."""
-    run_line = f'<div class="auria-run">Run ID: {run_id} | Version: {APP_VERSION}</div>' if run_id else ""
+    run_line = f'<span class="auria-pill">Run ID : {run_id}</span><span class="auria-pill">Version : {APP_VERSION}</span>' if run_id else ""
     st.markdown(
         f"""
-        <section class="auria-hero">
-            <div class="auria-kicker">Auria Advisory</div>
-            <h1>{APP_NAME}</h1>
-            <p>IFRS 9 ECL & Staging Demonstrator pour transformer le provisionnement IFRS 9 en un outil de pilotage transparent, explicable et auditable.</p>
-            <p><strong>{DEMO_DISCLAIMER_FR}</strong></p>
-            {run_line}
+        <div style="
+            display:flex;
+            align-items:center;
+            gap:12px;
+            margin: 0 0 18px;
+            color:#0b2b46;
+        ">
+            <div style="
+                width:44px;
+                height:44px;
+                border:1.5px solid #f1a986;
+                border-radius:50%;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                color:#f1a986;
+                font-family:Georgia, serif;
+                font-size:1.45rem;
+                font-weight:800;
+            ">A</div>
+            <div>
+                <div style="font-family:Georgia, serif; font-size:1.8rem; line-height:0.92; font-weight:800; letter-spacing:0.07em;">AURIA</div>
+                <div style="font-size:0.78rem; font-weight:900; letter-spacing:0.22em;">ADVISORY</div>
+            </div>
+        </div>
+        <section style="
+            position:relative;
+            overflow:hidden;
+            border-radius:26px;
+            padding:24px;
+            margin-bottom:22px;
+            color:#ffffff;
+            background:linear-gradient(135deg, #061d31, #0b2b46);
+            box-shadow:0 24px 60px rgba(11, 43, 70, 0.16);
+        ">
+            <div style="
+                display:grid;
+                grid-template-columns:minmax(0, 1.55fr) minmax(310px, 0.75fr);
+                gap:28px;
+                align-items:stretch;
+            ">
+                <div style="padding:2px 0 0;">
+                    <div style="
+                        color:#f1a986;
+                        font-size:0.72rem;
+                        font-weight:950;
+                        letter-spacing:0.08em;
+                        text-transform:uppercase;
+                        margin-bottom:24px;
+                    ">Auria Advisory | IFRS 9 ECL & Staging Systems</div>
+                    <h1 style="
+                        margin:0;
+                        max-width:760px;
+                        color:#ffffff;
+                        font-size:clamp(2.8rem, 6vw, 5.2rem);
+                        line-height:0.98;
+                        font-weight:900;
+                        letter-spacing:0;
+                    ">{APP_NAME}</h1>
+                    <p style="
+                        max-width:820px;
+                        margin:26px 0 18px;
+                        color:rgba(255,255,255,0.88);
+                        font-size:1rem;
+                        line-height:1.65;
+                    ">
+                        Demonstrateur IFRS 9 pour explorer le staging, les ECL, la qualite des donnees,
+                        les scenarios macro, les overlays manageriaux, l'audit trail et la note comite.
+                    </p>
+                    <div style="display:flex; flex-wrap:wrap; gap:10px; margin: 12px 0 10px;">
+                        <span class="auria-pill">Scenario actif : demo client</span>
+                        {run_line}
+                    </div>
+                    <p style="margin:10px 0 0; color:rgba(255,255,255,0.90); font-size:0.92rem;">
+                        <strong>Contexte :</strong> portefeuille synthetique multi-profils avec controles de coherence et restitution executive.
+                    </p>
+                    <p style="margin:8px 0 0; color:rgba(255,255,255,0.90); font-size:0.92rem;">
+                        <strong>A observer :</strong> migrations Stage 2/3, sensibilite macro, overlays et cas necessitant revue.
+                    </p>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:18px;">
+                        <span class="auria-pill">Donnees synthetiques</span>
+                        <span class="auria-pill">Dashboard executif</span>
+                        <span class="auria-pill">Audit trail</span>
+                        <span class="auria-pill">Note comite</span>
+                    </div>
+                </div>
+                <aside style="
+                    border:1px solid rgba(255,255,255,0.18);
+                    border-radius:20px;
+                    background:rgba(255,255,255,0.12);
+                    padding:22px 18px;
+                    backdrop-filter:blur(12px);
+                ">
+                    <div style="
+                        color:#f1a986;
+                        font-size:0.75rem;
+                        font-weight:950;
+                        letter-spacing:0.12em;
+                        text-transform:uppercase;
+                        margin-bottom:22px;
+                    ">Perimetre de demonstration</div>
+                    <div class="auria-scope-row"><span>Portefeuilles</span><strong>5 profils synthetiques</strong></div>
+                    <div class="auria-scope-row"><span>Modeles</span><strong>Staging, ECL, scenarios</strong></div>
+                    <div class="auria-scope-row"><span>Gouvernance</span><strong>Overlays, audit trail</strong></div>
+                    <div class="auria-scope-row"><span>Usage</span><strong>RDV client / comite</strong></div>
+                    <div style="
+                        margin-top:26px;
+                        padding-top:16px;
+                        border-top:1px solid rgba(255,255,255,0.16);
+                        color:rgba(255,255,255,0.84);
+                        font-size:0.84rem;
+                        line-height:1.55;
+                    ">{DEMO_DISCLAIMER_FR}</div>
+                </aside>
+            </div>
         </section>
+        <style>
+            .auria-pill {{
+                display:inline-flex;
+                align-items:center;
+                min-height:30px;
+                padding:0 13px;
+                border:1px solid rgba(255,255,255,0.20);
+                border-radius:999px;
+                background:rgba(255,255,255,0.10);
+                color:#ffffff;
+                font-size:0.78rem;
+                font-weight:850;
+                white-space:nowrap;
+            }}
+            .auria-scope-row {{
+                display:flex;
+                justify-content:space-between;
+                gap:16px;
+                padding:13px 0;
+                border-bottom:1px solid rgba(255,255,255,0.14);
+                color:#ffffff;
+                font-size:0.88rem;
+            }}
+            .auria-scope-row span {{
+                color:rgba(255,255,255,0.70);
+                font-size:0.74rem;
+                font-weight:900;
+                letter-spacing:0.08em;
+                text-transform:uppercase;
+            }}
+            .auria-scope-row strong {{
+                text-align:right;
+                font-weight:900;
+            }}
+        </style>
         """,
         unsafe_allow_html=True,
     )
