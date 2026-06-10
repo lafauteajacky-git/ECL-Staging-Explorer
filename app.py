@@ -106,10 +106,10 @@ def apply_auria_theme() -> None:
             z-index: 0;
         }
 
-        [data-testid="stHeader"] {
-            background: rgba(255, 250, 245, 0.86);
-            border-bottom: 1px solid rgba(11, 43, 70, 0.10);
-            backdrop-filter: blur(14px);
+        [data-testid="stHeader"],
+        [data-testid="stDecoration"],
+        [data-testid="stStatusWidget"] {
+            display: none;
         }
 
         [data-testid="stSidebar"] {
@@ -151,9 +151,38 @@ def apply_auria_theme() -> None:
         }
 
         .block-container {
-            padding-top: 2.25rem;
+            padding-top: 1rem;
             padding-bottom: 3rem;
             max-width: 1380px;
+        }
+
+        .sidebar-actions {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 6px;
+            margin: 2px 0 18px;
+        }
+
+        .sidebar-actions a {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 36px;
+            padding: 7px 5px;
+            border: 1px solid rgba(11, 43, 70, 0.16);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.82);
+            color: var(--auria-navy);
+            font-size: 0.72rem;
+            font-weight: 850;
+            text-align: center;
+            text-decoration: none;
+        }
+
+        .sidebar-actions a:hover {
+            border-color: var(--auria-navy);
+            background: var(--auria-navy);
+            color: #ffffff;
         }
 
         .auria-hero {
@@ -631,6 +660,16 @@ def main() -> None:
     apply_auria_theme()
 
     with st.sidebar:
+        st.markdown(
+            """
+            <div class="sidebar-actions">
+                <a href="https://ecl-explorer-demo.streamlit.app/" target="_blank" title="Ouvrir et partager l'application">Partager</a>
+                <a href="https://github.com/lafauteajacky-git/ECL-Staging-Explorer" target="_blank" title="Consulter le depot GitHub">GitHub</a>
+                <a href="https://auria-advisory.fr/" target="_blank" title="Consulter le site Auria Advisory">Auria</a>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         st.header("Navigation")
         selected_page = st.radio(
             "Navigation principale",
