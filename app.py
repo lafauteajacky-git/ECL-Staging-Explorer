@@ -60,7 +60,7 @@ from modules.scenario_engine import (
 from modules.staging_engine import assign_stage
 
 
-st.set_page_config(page_title=APP_NAME, layout="wide")
+st.set_page_config(page_title=APP_NAME, layout="wide", initial_sidebar_state="expanded")
 
 
 def apply_auria_theme() -> None:
@@ -113,8 +113,35 @@ def apply_auria_theme() -> None:
         }
 
         [data-testid="stSidebar"] {
+            display: block !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            bottom: 0 !important;
+            min-width: 280px !important;
+            width: 280px !important;
+            transform: none !important;
+            visibility: visible !important;
             background: rgba(255, 250, 245, 0.94);
             border-right: 1px solid var(--auria-line);
+            overflow-y: auto !important;
+            z-index: 999 !important;
+        }
+
+        [data-testid="stSidebar"] > div:first-child {
+            width: 280px !important;
+        }
+
+        [data-testid="stSidebarCollapsedControl"],
+        [data-testid="stSidebarCollapseButton"],
+        button[data-testid="stSidebarCollapseButton"] {
+            display: none !important;
+        }
+
+        [data-testid="stAppViewContainer"] > .main,
+        [data-testid="stAppViewContainer"] main {
+            margin-left: 280px !important;
+            width: calc(100% - 280px) !important;
         }
 
         [data-testid="stSidebar"] h2,
