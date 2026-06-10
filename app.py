@@ -124,6 +124,32 @@ def apply_auria_theme() -> None:
             font-weight: 800;
         }
 
+        [data-testid="stSidebar"] [data-testid="stRadio"] > div {
+            gap: 5px;
+        }
+
+        [data-testid="stSidebar"] [data-testid="stRadio"] label {
+            min-height: 38px;
+            padding: 8px 10px;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            transition: background 120ms ease, border-color 120ms ease;
+        }
+
+        [data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
+            border-color: rgba(11, 43, 70, 0.14);
+            background: rgba(11, 43, 70, 0.05);
+        }
+
+        [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {
+            border-color: var(--auria-navy);
+            background: var(--auria-navy);
+        }
+
+        [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) p {
+            color: #ffffff;
+        }
+
         .block-container {
             padding-top: 2.25rem;
             padding-bottom: 3rem;
@@ -520,6 +546,27 @@ def main() -> None:
     apply_auria_theme()
 
     with st.sidebar:
+        st.header("Navigation")
+        selected_page = st.radio(
+            "Navigation principale",
+            [
+                "Accueil",
+                "Portefeuille",
+                "Data Quality",
+                "Business Consistency",
+                "Staging",
+                "ECL Calculation",
+                "Macro Scenarios",
+                "Management Overlays",
+                "Dashboard",
+                "Audit Trail",
+                "Committee Summary",
+                "Export",
+            ],
+            label_visibility="collapsed",
+            key="main_navigation",
+        )
+        st.divider()
         st.header("Parametres")
         source = st.radio("Source du portefeuille", ["Generer un portefeuille synthetique", "Charger un fichier"], index=0)
         demo_profile = st.selectbox("Demo Portfolio Profile", DEMO_PORTFOLIO_PROFILES, index=0)
@@ -675,32 +722,15 @@ def main() -> None:
         st.stop()
     render_brand_header(run_id)
 
-    tab_home, tab_portfolio, tab_dq, tab_business, tab_staging, tab_ecl, tab_macro, tab_overlays, tab_dashboard, tab_audit, tab_summary, tab_export = st.tabs(
-        [
-            "Accueil",
-            "Portefeuille",
-            "Data Quality",
-            "Business Consistency",
-            "Staging",
-            "ECL Calculation",
-            "Macro Scenarios",
-            "Management Overlays",
-            "Dashboard",
-            "Audit Trail",
-            "Committee Summary",
-            "Export",
-        ]
-    )
-
-    with tab_home:
+    if selected_page == "Accueil":
         render_home(metrics, active_demo_profile)
 
-    with tab_portfolio:
+    elif selected_page == "Portefeuille":
         st.subheader("Portefeuille synthetique")
         st.write("Vue ligne a ligne des expositions utilisees pour la demonstration.")
         st.dataframe(portfolio, width="stretch")
 
-    with tab_dq:
+    elif selected_page == "Data Quality":
         st.subheader("Controles de qualite des donnees")
         col1, col2, col3 = st.columns(3)
         col1.metric("Nombre d'anomalies", len(findings))
@@ -709,17 +739,17 @@ def main() -> None:
         st.dataframe(dq_summary, width="stretch")
         st.dataframe(findings, width="stretch")
 
-    with tab_business:
+    elif selected_page == "Business Consistency":
         render_business_consistency(business_summary, business_alerts)
 
-    with tab_staging:
+    elif selected_page == "Staging":
         st.subheader("Affectation des stages")
         stage_counts = staged.groupby(["stage", "stage_reason"], as_index=False).size().rename(columns={"size": "count"})
         fig_stage = px.bar(stage_counts, x="stage", y="count", color="stage_reason", title="Expositions par stage et raison")
         st.plotly_chart(fig_stage, width="stretch")
         st.dataframe(staged[["loan_id", "client_id", "initial_stage", "stage", "stage_reason", "stage_comment", "days_past_due", "origination_rating", "current_rating"]], width="stretch")
 
-    with tab_ecl:
+    elif selected_page == "ECL Calculation":
         st.subheader("Calcul ECL")
         st.dataframe(
             ecl_portfolio[
@@ -746,7 +776,7 @@ def main() -> None:
             width="stretch",
         )
 
-    with tab_macro:
+    elif selected_page == "Macro Scenarios":
         render_macro_scenarios(
             scenario_parameters,
             scenario_weights_valid,
@@ -755,10 +785,10 @@ def main() -> None:
             downside_by_stage,
         )
 
-    with tab_overlays:
+    elif selected_page == "Management Overlays":
         render_management_overlays(overlay_parameters, overlay_summary, overlay_results, overlay_metrics, overlay_waterfall)
 
-    with tab_dashboard:
+    elif selected_page == "Dashboard":
         st.subheader("Dashboard executif")
         render_dashboard(
             metrics,
@@ -801,10 +831,10 @@ def main() -> None:
         st.write("Alertes de coherence metier")
         st.dataframe(audit_view["business_alerts"], width="stretch")
 
-    with tab_audit:
+    elif selected_page == "Audit Trail":
         render_audit_trail(detailed_audit_trail)
 
-    with tab_summary:
+    elif selected_page == "Committee Summary":
         st.subheader("Committee Summary")
         render_committee_summary_visual(
             committee_summary,
@@ -839,7 +869,7 @@ def main() -> None:
         except Exception as exc:
             st.warning(f"Export Word indisponible : {exc}")
 
-    with tab_export:
+    elif selected_page == "Export":
         st.subheader("Export Excel")
         staging_results = staged[
             ["loan_id", "client_id", "initial_stage", "stage", "stage_reason", "stage_comment", "days_past_due", "origination_rating", "current_rating"]
