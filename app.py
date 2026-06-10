@@ -237,6 +237,16 @@ def apply_auria_theme() -> None:
             .auria-main-hero h1 {
                 font-size: clamp(2.6rem, 7vw, 4.4rem) !important;
             }
+
+            .portfolio-summary-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .portfolio-summary-grid {
+                grid-template-columns: minmax(0, 1fr) !important;
+            }
         }
 
         .auria-hero {
@@ -670,6 +680,18 @@ def render_demo_parameters():
             type="primary",
             disabled=source != "Generer un portefeuille synthetique",
         )
+        generated_summary = st.session_state.get("portfolio_generation_summary", {})
+        if source == "Generer un portefeuille synthetique" and generated_summary:
+            pending_changes = (
+                generated_summary.get("profile") != demo_profile
+                or int(generated_summary.get("requested_exposures", 0)) != int(n_exposures)
+                or int(generated_summary.get("seed", 0)) != int(seed)
+            )
+            if pending_changes:
+                st.warning(
+                    "Les parametres affiches different du portefeuille actif. "
+                    "Cliquez sur le bouton pour generer un nouveau portefeuille."
+                )
 
     with st.expander("2. Scenarios macroeconomiques", expanded=False):
         scenario_config = build_scenario_controls()
@@ -769,11 +791,26 @@ def main() -> None:
             st.error(f"Chargement impossible : {exc}")
             st.stop()
     else:
-        if generate_clicked or "portfolio" not in st.session_state or st.session_state.get("demo_profile") != demo_profile:
-            st.session_state["portfolio"] = load_synthetic_portfolio(n_exposures=n_exposures, seed=seed, demo_profile=demo_profile)
+        if generate_clicked or "portfolio" not in st.session_state:
+            generation_datetime = datetime.now()
+            generated_portfolio = load_synthetic_portfolio(
+                n_exposures=n_exposures,
+                seed=seed,
+                demo_profile=demo_profile,
+            )
+            st.session_state["portfolio"] = generated_portfolio
             st.session_state["demo_profile"] = demo_profile
-            st.session_state["run_datetime"] = datetime.now()
-            st.session_state["run_id"] = generate_run_id(st.session_state["run_datetime"])
+            st.session_state["run_datetime"] = generation_datetime
+            st.session_state["run_id"] = generate_run_id(generation_datetime)
+            st.session_state["portfolio_generation_summary"] = {
+                "profile": demo_profile,
+                "requested_exposures": int(n_exposures),
+                "generated_exposures": int(len(generated_portfolio)),
+                "seed": int(seed),
+                "generated_at": generation_datetime.strftime("%d/%m/%Y %H:%M:%S"),
+                "run_id": st.session_state["run_id"],
+                "manual_generation": bool(generate_clicked),
+            }
         portfolio = st.session_state["portfolio"]
     active_demo_profile = st.session_state.get("demo_profile", demo_profile)
 
@@ -895,7 +932,7 @@ def main() -> None:
         st.error(f"Calcul impossible : {exc}")
         st.stop()
     if selected_page == "Accueil":
-        render_home(metrics, active_demo_profile, show_introduction=False)
+        render_home(metrics, active_demo_profile, portfolio=portfolio, show_introduction=False)
 
     elif selected_page == "Portefeuille":
         st.subheader("Portefeuille synthetique")
@@ -1146,6 +1183,7 @@ def render_home_introduction() -> None:
 def render_home(
     metrics: dict[str, float] | None,
     demo_profile: str | None = None,
+    portfolio: pd.DataFrame | None = None,
     show_introduction: bool = True,
 ) -> None:
     """Render the client-demo landing section."""
@@ -1153,7 +1191,7 @@ def render_home(
         render_home_introduction()
 
     if demo_profile:
-        st.info(f"Profil de demo selectionne : {demo_profile}. {PROFILE_CONTEXT.get(demo_profile, '')}")
+        render_portfolio_summary(demo_profile, portfolio, metrics)
 
     st.write("Demo Storyline")
     st.dataframe(pd.DataFrame(DEMO_STORYLINE), width="stretch", hide_index=True)
@@ -1166,6 +1204,100 @@ def render_home(
         col4.metric("Expositions", f"{metrics['exposure_count']:,}".replace(",", " "))
 
     render_contact_block()
+
+
+def render_portfolio_summary(
+    demo_profile: str,
+    portfolio: pd.DataFrame | None,
+    metrics: dict[str, float] | None,
+) -> None:
+    """Render an exhaustive description of the active synthetic portfolio."""
+    generation = st.session_state.get("portfolio_generation_summary", {})
+    if generation:
+        st.success(
+            f"Portefeuille actif : {generation.get('generated_exposures', 0):,} expositions generees "
+            f"le {generation.get('generated_at', '')} - seed {generation.get('seed', '')} - "
+            f"{generation.get('run_id', '')}.".replace(",", " ")
+        )
+
+    if portfolio is None or portfolio.empty:
+        st.info(f"Profil selectionne : {demo_profile}. {PROFILE_CONTEXT.get(demo_profile, '')}")
+        return
+
+    product_count = int(portfolio["product_type"].nunique()) if "product_type" in portfolio else 0
+    sector_count = int(portfolio["sector"].nunique()) if "sector" in portfolio else 0
+    country_count = int(portfolio["country"].nunique()) if "country" in portfolio else 0
+    total_ead = float(pd.to_numeric(portfolio.get("ead"), errors="coerce").fillna(0).sum())
+    default_rate = float(portfolio.get("default_flag", pd.Series(False, index=portfolio.index)).fillna(False).mean())
+    forbearance_rate = float(
+        portfolio.get("forbearance_flag", pd.Series(False, index=portfolio.index)).fillna(False).mean()
+    )
+    watchlist_rate = float(
+        portfolio.get("watchlist_flag", pd.Series(False, index=portfolio.index)).fillna(False).mean()
+    )
+    collateral_rate = float(
+        portfolio.get("collateral_flag", pd.Series(False, index=portfolio.index)).fillna(False).mean()
+    )
+    average_maturity = float(
+        pd.to_numeric(portfolio.get("residual_maturity_months"), errors="coerce").dropna().mean()
+    )
+    exposure_label = f"{len(portfolio):,}".replace(",", " ")
+    profile_focus = {
+        "Balanced Portfolio": "Portefeuille diversifie servant de cas central, avec une combinaison equilibree de stages, produits et secteurs.",
+        "Low Risk Portfolio": "Portefeuille majoritairement sain, avec faibles PD, peu de retards et une migration Stage 2/3 limitee.",
+        "Deteriorated Portfolio": "Portefeuille degrade : ratings plus faibles, DPD plus frequents, flags de risque renforces et ECL plus concentree.",
+        "Data Quality Issues Portfolio": "Portefeuille volontairement altere pour tester ratings/PD/LGD manquants, EAD invalides, DPD negatifs et incoherences de collateral.",
+        "CRE Stress Portfolio": "Portefeuille concentre sur l'immobilier commercial, avec EAD, PD, LGD et signaux watchlist renforces sur ce secteur.",
+    }.get(demo_profile, PROFILE_CONTEXT.get(demo_profile, "Profil synthetique de demonstration."))
+
+    st.markdown(
+        f"""
+        <section style="
+            margin: 18px 0 26px;
+            padding: 24px 26px;
+            border: 1px solid rgba(11, 43, 70, 0.18);
+            border-radius: 18px;
+            color: #ffffff;
+            background: linear-gradient(135deg, #0b2b46, #174866);
+            box-shadow: 0 18px 44px rgba(11, 43, 70, 0.12);
+        ">
+            <div style="color:#f1a986; font-size:0.76rem; font-weight:900; letter-spacing:0.1em; text-transform:uppercase;">
+                Portefeuille simule actif
+            </div>
+            <h3 style="margin:8px 0 10px; color:#ffffff; font-size:1.55rem;">{demo_profile}</h3>
+            <p style="margin:0 0 18px; color:rgba(255,255,255,0.88); line-height:1.65;">{profile_focus}</p>
+            <div class="portfolio-summary-grid" style="
+                display:grid;
+                grid-template-columns:repeat(4, minmax(0, 1fr));
+                gap:10px;
+                margin-bottom:20px;
+            ">
+                <div><strong>{exposure_label}</strong><br><span>expositions</span></div>
+                <div><strong>{format_compact_currency(total_ead)}</strong><br><span>EAD simulee</span></div>
+                <div><strong>{product_count} / {sector_count} / {country_count}</strong><br><span>produits / secteurs / pays</span></div>
+                <div><strong>{average_maturity:.0f} mois</strong><br><span>maturite moyenne</span></div>
+            </div>
+            <div class="portfolio-summary-grid" style="
+                display:grid;
+                grid-template-columns:repeat(4, minmax(0, 1fr));
+                gap:10px;
+                padding-top:16px;
+                border-top:1px solid rgba(255,255,255,0.16);
+            ">
+                <div><strong>{default_rate:.1%}</strong><br><span>defaut synthetique</span></div>
+                <div><strong>{forbearance_rate:.1%}</strong><br><span>forbearance</span></div>
+                <div><strong>{watchlist_rate:.1%}</strong><br><span>watchlist</span></div>
+                <div><strong>{collateral_rate:.1%}</strong><br><span>avec collateral</span></div>
+            </div>
+            <p style="margin:20px 0 0; color:rgba(255,255,255,0.76); font-size:0.82rem; line-height:1.55;">
+                Le jeu simule des ratings de 1 a 10, PD 12 mois et lifetime, LGD, EAD, maturites,
+                jours de retard, defaut, forbearance, watchlist, collateral et LTV. Les distributions
+                sont pedagogiques, reproductibles par seed et non calibrees sur une banque reelle.
+            </p>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_contact_block() -> None:
