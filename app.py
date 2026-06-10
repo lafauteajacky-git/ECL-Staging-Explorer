@@ -542,6 +542,91 @@ def render_kpi_card(label: str, value: str, caption: str = "") -> None:
     )
 
 
+def render_demo_parameters():
+    """Render all demo controls in the main home page."""
+    st.markdown("### Parametres de la demonstration")
+    st.caption("Configurez le portefeuille, les hypotheses macroeconomiques et les overlays avant d'explorer les resultats.")
+
+    with st.expander("1. Portefeuille de demonstration", expanded=True):
+        source = st.radio(
+            "Source du portefeuille",
+            ["Generer un portefeuille synthetique", "Charger un fichier"],
+            index=0,
+            horizontal=True,
+            key="demo_source",
+        )
+        portfolio_col1, portfolio_col2 = st.columns(2)
+        with portfolio_col1:
+            demo_profile = st.selectbox(
+                "Demo Portfolio Profile",
+                DEMO_PORTFOLIO_PROFILES,
+                index=0,
+                key="demo_profile_control",
+            )
+            st.caption(PROFILE_CONTEXT.get(demo_profile, "Profil de demonstration synthetique."))
+        with portfolio_col2:
+            n_exposures = st.slider(
+                "Nombre d'expositions",
+                min_value=100,
+                max_value=5_000,
+                value=1_000,
+                step=100,
+                key="demo_exposure_count",
+            )
+            seed = st.number_input("Seed aleatoire", min_value=1, value=42, step=1, key="demo_seed")
+
+        uploaded_file = None
+        if source == "Charger un fichier":
+            uploaded_file = st.file_uploader(
+                "Fichier CSV ou Excel",
+                type=["csv", "xlsx"],
+                key="demo_uploaded_file",
+            )
+        generate_clicked = st.button(
+            "Generer le portefeuille synthetique",
+            type="primary",
+            disabled=source != "Generer un portefeuille synthetique",
+        )
+
+    with st.expander("2. Scenarios macroeconomiques", expanded=False):
+        scenario_config = build_scenario_controls()
+
+    with st.expander("3. Overlays manageriaux", expanded=False):
+        enabled_overlays = st.multiselect(
+            "Overlays actifs",
+            options=[overlay["name"] for overlay in PREDEFINED_OVERLAYS],
+            default=[overlay["name"] for overlay in PREDEFINED_OVERLAYS],
+            key="demo_enabled_overlays",
+        )
+
+    return source, demo_profile, n_exposures, seed, generate_clicked, uploaded_file, scenario_config, enabled_overlays
+
+
+def load_demo_parameters_from_state():
+    """Load persisted demo settings when controls are not rendered."""
+    source = st.session_state.get("demo_source", "Generer un portefeuille synthetique")
+    demo_profile = st.session_state.get("demo_profile_control", "Balanced Portfolio")
+    n_exposures = int(st.session_state.get("demo_exposure_count", 1_000))
+    seed = int(st.session_state.get("demo_seed", 42))
+    uploaded_file = st.session_state.get("demo_uploaded_file")
+    scenario_config = {}
+    for scenario, defaults in DEFAULT_SCENARIOS.items():
+        scenario_config[scenario] = {
+            "weight": float(st.session_state.get(f"{scenario.lower()}_weight", defaults["weight"] * 100)) / 100,
+            "pd_multiplier": float(
+                st.session_state.get(f"{scenario.lower()}_pd_multiplier", defaults["pd_multiplier"])
+            ),
+            "lgd_multiplier": float(
+                st.session_state.get(f"{scenario.lower()}_lgd_multiplier", defaults["lgd_multiplier"])
+            ),
+        }
+    enabled_overlays = st.session_state.get(
+        "demo_enabled_overlays",
+        [overlay["name"] for overlay in PREDEFINED_OVERLAYS],
+    )
+    return source, demo_profile, n_exposures, seed, uploaded_file, scenario_config, enabled_overlays
+
+
 def main() -> None:
     apply_auria_theme()
 
@@ -566,25 +651,20 @@ def main() -> None:
             label_visibility="collapsed",
             key="main_navigation",
         )
-        st.divider()
-        st.header("Parametres")
-        source = st.radio("Source du portefeuille", ["Generer un portefeuille synthetique", "Charger un fichier"], index=0)
-        demo_profile = st.selectbox("Demo Portfolio Profile", DEMO_PORTFOLIO_PROFILES, index=0)
-        st.caption(PROFILE_CONTEXT.get(demo_profile, "Profil de demonstration synthetique."))
-        n_exposures = st.slider("Nombre d'expositions", min_value=100, max_value=5_000, value=1_000, step=100)
-        seed = st.number_input("Seed aleatoire", min_value=1, value=42, step=1)
-        generate_clicked = st.button("Generer le portefeuille synthetique", type="primary")
-        uploaded_file = None
-        if source == "Charger un fichier":
-            uploaded_file = st.file_uploader("Fichier CSV ou Excel", type=["csv", "xlsx"])
-        st.header("Scenarios macro")
-        scenario_config = build_scenario_controls()
-        st.header("Overlays")
-        enabled_overlays = st.multiselect(
-            "Overlays actifs",
-            options=[overlay["name"] for overlay in PREDEFINED_OVERLAYS],
-            default=[overlay["name"] for overlay in PREDEFINED_OVERLAYS],
+        st.caption("Selectionnez une rubrique pour afficher son contenu.")
+
+    render_brand_header(st.session_state.get("run_id"))
+
+    if selected_page == "Accueil":
+        render_home_introduction()
+        source, demo_profile, n_exposures, seed, generate_clicked, uploaded_file, scenario_config, enabled_overlays = (
+            render_demo_parameters()
         )
+    else:
+        source, demo_profile, n_exposures, seed, uploaded_file, scenario_config, enabled_overlays = (
+            load_demo_parameters_from_state()
+        )
+        generate_clicked = False
 
     if source == "Charger un fichier":
         if uploaded_file is None:
@@ -605,7 +685,8 @@ def main() -> None:
     active_demo_profile = st.session_state.get("demo_profile", demo_profile)
 
     if portfolio is None:
-        render_home(None)
+        if selected_page == "Accueil":
+            render_home(None, demo_profile, show_introduction=False)
         st.info("Chargez un fichier CSV ou Excel, ou repassez en generation synthetique.")
         st.stop()
 
@@ -720,10 +801,8 @@ def main() -> None:
     except Exception as exc:
         st.error(f"Calcul impossible : {exc}")
         st.stop()
-    render_brand_header(run_id)
-
     if selected_page == "Accueil":
-        render_home(metrics, active_demo_profile)
+        render_home(metrics, active_demo_profile, show_introduction=False)
 
     elif selected_page == "Portefeuille":
         st.subheader("Portefeuille synthetique")
@@ -960,8 +1039,8 @@ def build_scenario_controls() -> dict[str, dict[str, float]]:
     return scenario_config
 
 
-def render_home(metrics: dict[str, float] | None, demo_profile: str | None = None) -> None:
-    """Render the client-demo landing section."""
+def render_home_introduction() -> None:
+    """Render the commercial introduction shown before the demo settings."""
     st.subheader("IFRS 9 ECL & Staging Demonstrator")
     st.markdown("**Transformer le provisionnement IFRS 9 en un outil de pilotage transparent, explicable et auditable.**")
     st.write(
@@ -969,6 +1048,16 @@ def render_home(metrics: dict[str, float] | None, demo_profile: str | None = Non
         "staging, calcul des pertes attendues et restitution executive pour discussion client."
     )
     st.warning(DEMO_DISCLAIMER_FR)
+
+
+def render_home(
+    metrics: dict[str, float] | None,
+    demo_profile: str | None = None,
+    show_introduction: bool = True,
+) -> None:
+    """Render the client-demo landing section."""
+    if show_introduction:
+        render_home_introduction()
 
     if demo_profile:
         st.info(f"Profil de demo selectionne : {demo_profile}. {PROFILE_CONTEXT.get(demo_profile, '')}")
