@@ -118,18 +118,22 @@ def apply_auria_theme() -> None:
             top: 0 !important;
             left: 0 !important;
             bottom: 0 !important;
-            min-width: 280px !important;
-            width: 280px !important;
+            min-width: 300px !important;
+            width: 300px !important;
+            max-width: 300px !important;
+            flex-basis: 300px !important;
             transform: none !important;
             visibility: visible !important;
-            background: rgba(255, 250, 245, 0.94);
+            background: #fffaf5 !important;
             border-right: 1px solid var(--auria-line);
             overflow-y: auto !important;
             z-index: 999 !important;
         }
 
         [data-testid="stSidebar"] > div:first-child {
-            width: 280px !important;
+            min-width: 300px !important;
+            width: 300px !important;
+            max-width: 300px !important;
         }
 
         [data-testid="stSidebarCollapsedControl"],
@@ -138,10 +142,23 @@ def apply_auria_theme() -> None:
             display: none !important;
         }
 
+        [data-testid="stAppViewContainer"] {
+            margin-left: 300px !important;
+            width: calc(100vw - 300px) !important;
+            max-width: calc(100vw - 300px) !important;
+        }
+
         [data-testid="stAppViewContainer"] > .main,
         [data-testid="stAppViewContainer"] main {
-            margin-left: 280px !important;
-            width: calc(100% - 280px) !important;
+            margin-left: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+
+        [data-testid="stAppViewBlockContainer"] {
+            max-width: 1380px !important;
+            padding-left: 2rem !important;
+            padding-right: 2rem !important;
         }
 
         [data-testid="stSidebar"] h2,
@@ -210,6 +227,16 @@ def apply_auria_theme() -> None:
             border-color: var(--auria-navy);
             background: var(--auria-navy);
             color: #ffffff;
+        }
+
+        @media (max-width: 1100px) {
+            .auria-main-hero-grid {
+                grid-template-columns: minmax(0, 1fr) !important;
+            }
+
+            .auria-main-hero h1 {
+                font-size: clamp(2.6rem, 7vw, 4.4rem) !important;
+            }
         }
 
         .auria-hero {
@@ -405,7 +432,7 @@ def render_brand_header(run_id: str | None = None) -> None:
                 ">ADVISORY</div>
             </div>
         </div>
-        <section style="
+        <section class="auria-main-hero" style="
             position:relative;
             overflow:hidden;
             border-radius:26px;
@@ -415,7 +442,7 @@ def render_brand_header(run_id: str | None = None) -> None:
             background:linear-gradient(135deg, #061d31, #0b2b46);
             box-shadow:0 24px 60px rgba(11, 43, 70, 0.16);
         ">
-            <div style="
+            <div class="auria-main-hero-grid" style="
                 display:grid;
                 grid-template-columns:minmax(0, 1.55fr) minmax(310px, 0.75fr);
                 gap:28px;
