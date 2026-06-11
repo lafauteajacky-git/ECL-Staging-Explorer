@@ -68,6 +68,7 @@ from modules.sample_data import (
     DATA_QUALITY_LEVEL_DESCRIPTIONS,
     DATA_QUALITY_LEVELS,
     DEMO_PORTFOLIO_PROFILES,
+    ensure_staging_transition_context,
     generate_demo_portfolio,
 )
 from modules.scenario_engine import (
@@ -791,11 +792,14 @@ def load_synthetic_portfolio(
     data_quality_level: str,
 ) -> pd.DataFrame:
     """Cache synthetic generation for a smoother demo experience."""
+    transition_schema_version = "staging-cure-v1"
     return generate_demo_portfolio(
         profile=demo_profile,
         n_exposures=n_exposures,
         seed=seed,
         data_quality_level=data_quality_level,
+    ).assign(_transition_schema_version=transition_schema_version).drop(
+        columns="_transition_schema_version"
     )
 
 
@@ -1271,6 +1275,10 @@ def main() -> None:
         st.error("Calcul impossible : colonnes obligatoires absentes.")
         st.write(", ".join(missing_columns))
         st.stop()
+
+    portfolio = ensure_staging_transition_context(portfolio, seed=seed)
+    if source == "Generer un portefeuille synthetique":
+        st.session_state["portfolio"] = portfolio
 
     render_active_demo_context(
         source,

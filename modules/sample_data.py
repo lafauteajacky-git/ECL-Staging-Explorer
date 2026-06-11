@@ -37,6 +37,18 @@ DATA_QUALITY_LEVEL_DESCRIPTIONS = {
         "Taux d'anomalies renforce sur les donnees critiques, les identifiants et les relations entre champs."
     ),
 }
+STAGING_TRANSITION_COLUMNS = {
+    "previous_stage",
+    "origination_pd_12m",
+    "sicr_flag",
+    "credit_impaired_flag",
+    "unlikely_to_pay_flag",
+    "bankruptcy_flag",
+    "distressed_restructuring_flag",
+    "payment_normalized_flag",
+    "cure_period_months",
+    "probation_required_months",
+}
 
 
 def generate_portfolio(n_exposures: int = 1_000, seed: int = 42) -> pd.DataFrame:
@@ -178,6 +190,17 @@ def apply_data_quality_level(
     source_rows = rng.choice(result.index, size=len(duplicate_rows), replace=False)
     result.loc[duplicate_rows, "loan_id"] = result.loc[source_rows, "loan_id"].to_numpy()
     return result
+
+
+def ensure_staging_transition_context(
+    portfolio: pd.DataFrame,
+    seed: int = 42,
+) -> pd.DataFrame:
+    """Upgrade an older portfolio schema with synthetic transition fields."""
+    if STAGING_TRANSITION_COLUMNS.issubset(portfolio.columns):
+        return portfolio.copy()
+    rng = np.random.default_rng(seed + 30_000)
+    return _add_staging_transition_context(portfolio, rng)
 
 
 def _apply_low_risk_profile(portfolio: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
