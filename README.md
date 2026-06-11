@@ -28,7 +28,7 @@ Le demonstrateur aide a illustrer en rendez-vous client ou en atelier interne :
 
 La V1 ne propose aucun import de fichier externe. Tous les portefeuilles sont generes localement par le moteur de donnees synthetiques du demonstrateur.
 
-## Fonctionnalites principales V1
+## Fonctionnalites principales V1.1
 
 - Profils de portefeuille de demonstration : `Balanced`, `Low Risk`, `Deteriorated`, `Data Quality Issues`, `CRE Stress`.
 - Data quality checks et score qualite.
@@ -45,6 +45,8 @@ La V1 ne propose aucun import de fichier externe. Tous les portefeuilles sont ge
 - Validation renforcee des ponderations et multiplicateurs macroeconomiques.
 - Desactivation complete possible des overlays sans application implicite.
 - Coercition stricte des indicateurs booleens et bornage des PD/LGD entre 0% et 100%.
+- Ratios ECL/EAD et indicateurs derives proteges contre les divisions par zero.
+- Interface reorganisee dans `ui/` : theme, branding et composants KPI reutilisables.
 
 ## Installation
 
@@ -130,6 +132,8 @@ docs/
   ROADMAP.md
   DEPLOYMENT_PROCEDURE.md
 modules/
+  calculation_utils.py
+  data_types.py
   sample_data.py
   data_quality.py
   business_checks.py
@@ -141,11 +145,15 @@ modules/
   audit_trail.py
   committee_summary.py
   demo_config.py
+ui/
+  theme.py
+  branding.py
+  components.py
 outputs/
 tests/
 ```
 
-La logique metier est dans `modules/`. L'interface `app.py` orchestre les modules, les graphiques et les exports.
+La logique metier est dans `modules/`. Le package `ui/` centralise le theme, le branding et les composants visuels reutilisables. `app.py` conserve l'orchestration des pages, des calculs et des exports.
 
 ## Documentation
 

@@ -12,6 +12,7 @@ from modules.reporting import build_excel_export_bytes
 def test_main_modules_import_cleanly():
     import modules.audit_trail  # noqa: F401
     import modules.business_checks  # noqa: F401
+    import modules.calculation_utils  # noqa: F401
     import modules.committee_summary  # noqa: F401
     import modules.data_quality  # noqa: F401
     import modules.ecl_calculator  # noqa: F401
@@ -20,6 +21,9 @@ def test_main_modules_import_cleanly():
     import modules.sample_data  # noqa: F401
     import modules.scenario_engine  # noqa: F401
     import modules.staging_engine  # noqa: F401
+    import ui.branding  # noqa: F401
+    import ui.components  # noqa: F401
+    import ui.theme  # noqa: F401
 
 
 def test_packaging_docs_exist():
@@ -39,6 +43,17 @@ def test_public_demo_does_not_offer_external_data_import():
     assert "file_uploader" not in app_source
     assert "read_uploaded_file" not in app_source
     assert "Charger un fichier" not in app_source
+
+
+def test_streamlit_shell_is_split_into_ui_modules():
+    app_source = Path("app.py").read_text(encoding="utf-8")
+
+    assert "from ui.theme import apply_auria_theme" in app_source
+    assert "from ui.branding import render_brand_header" in app_source
+    assert "from ui.components import" in app_source
+    assert Path("ui/theme.py").exists()
+    assert Path("ui/branding.py").exists()
+    assert Path("ui/components.py").exists()
 
 
 def test_disclaimer_is_present_in_committee_summary_and_excel_export():

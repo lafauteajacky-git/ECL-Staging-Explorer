@@ -35,9 +35,13 @@ pytest
 
 ## Modules
 
+- `ui/theme.py` : theme visuel Auria et styles Streamlit.
+- `ui/branding.py` : en-tetes et composants de marque Auria.
+- `ui/components.py` : composants de presentation reutilisables, notamment les cartes KPI.
 - `modules/sample_data.py` : generation de portefeuille et profils de demonstration synthetiques.
 - `modules/data_quality.py` : controles simples de qualite des donnees.
 - `modules/data_types.py` : coercition partagee des types de donnees, notamment les indicateurs booleens.
+- `modules/calculation_utils.py` : helpers numeriques communs, notamment les divisions securisees.
 - `modules/staging_engine.py` : regles de staging MVP.
 - `modules/ecl_calculator.py` : calcul ECL simplifie.
 - `modules/scenario_engine.py` : scenarios macroeconomiques pedagogiques Baseline, Downside et Upside.

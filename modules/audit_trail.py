@@ -9,7 +9,7 @@ import pandas as pd
 from modules.demo_config import DEMO_DISCLAIMER_FR
 
 
-APP_VERSION = "V1.0"
+APP_VERSION = "V1.1"
 
 
 def generate_run_id(run_datetime: datetime | None = None) -> str:

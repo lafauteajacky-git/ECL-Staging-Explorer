@@ -9,6 +9,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from modules.calculation_utils import safe_divide
+
 from modules.demo_config import DEMO_DISCLAIMER_FR
 
 
@@ -75,7 +77,7 @@ def aggregate_ecl_by_stage(ecl_portfolio: pd.DataFrame) -> pd.DataFrame:
         .sort_values("stage")
         .reset_index(drop=True)
     )
-    summary["coverage_ratio"] = np.where(summary["ead"] > 0, summary["ecl"] / summary["ead"], 0.0)
+    summary["coverage_ratio"] = safe_divide(summary["ecl"], summary["ead"])
     return summary
 
 
@@ -102,7 +104,7 @@ def build_dashboard_metrics(
     return {
         "total_ead": total_ead,
         "total_ecl": total_ecl,
-        "coverage_ratio": total_ecl / total_ead if total_ead else 0.0,
+        "coverage_ratio": safe_divide(total_ecl, total_ead),
         "exposure_count": exposure_count,
         "stage_2_share": float((ecl_portfolio["stage"] == "Stage 2").mean()) if exposure_count else 0.0,
         "stage_3_share": float((ecl_portfolio["stage"] == "Stage 3").mean()) if exposure_count else 0.0,

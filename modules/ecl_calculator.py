@@ -5,6 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from modules.calculation_utils import safe_divide
+
 
 def calculate_ecl(staged_portfolio: pd.DataFrame) -> pd.DataFrame:
     """Calculate ECL according to simplified Stage 1, Stage 2 and Stage 3 rules."""
@@ -22,7 +24,7 @@ def calculate_ecl(staged_portfolio: pd.DataFrame) -> pd.DataFrame:
     result["pd_used_for_ecl"] = pd_for_ecl
     result["lgd_used_for_ecl"] = lgd
     result["ecl"] = result["pd_used_for_ecl"] * result["lgd_used_for_ecl"] * ead
-    result["coverage_ratio"] = np.where(ead > 0, result["ecl"] / ead, 0.0)
+    result["coverage_ratio"] = safe_divide(result["ecl"], ead)
     return result
 
 
@@ -34,11 +36,7 @@ def summarize_ecl(ecl_portfolio: pd.DataFrame) -> pd.DataFrame:
         .sort_values("stage")
         .reset_index(drop=True)
     )
-    summary["coverage_ratio"] = np.where(
-        summary["ead"] > 0,
-        summary["ecl"] / summary["ead"],
-        0.0,
-    )
+    summary["coverage_ratio"] = safe_divide(summary["ecl"], summary["ead"])
     return summary
 
 
@@ -49,6 +47,6 @@ def calculate_portfolio_metrics(ecl_portfolio: pd.DataFrame) -> dict[str, float]
     return {
         "total_ead": total_ead,
         "total_ecl": total_ecl,
-        "coverage_ratio": total_ecl / total_ead if total_ead else 0.0,
+        "coverage_ratio": safe_divide(total_ecl, total_ead),
         "exposure_count": int(len(ecl_portfolio)),
     }

@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from modules.calculation_utils import safe_divide
 from modules.data_types import coerce_boolean_series
 
 
@@ -144,7 +145,11 @@ def run_business_consistency_checks(ecl_portfolio: pd.DataFrame) -> pd.DataFrame
     _append_alerts(
         alerts,
         ecl_portfolio,
-        (_num_col(ecl_portfolio, "ead") > 0) & ((_num_col(ecl_portfolio, "ecl") / _num_col(ecl_portfolio, "ead")) > 0.50),
+        safe_divide(
+            _num_col(ecl_portfolio, "ecl"),
+            _num_col(ecl_portfolio, "ead"),
+        )
+        > 0.50,
         WARNING_SEVERITY,
         "HIGH_ECL_TO_EAD",
         "ECL tres elevee par rapport a l'EAD",

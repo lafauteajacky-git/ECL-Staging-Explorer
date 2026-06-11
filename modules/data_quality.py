@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from modules.calculation_utils import safe_divide
 from modules.data_types import coerce_boolean_series
 
 
@@ -573,10 +574,9 @@ def build_raw_quality_dimension_summary(test_results: pd.DataFrame) -> pd.DataFr
             exception_count=("exception_count", "sum"),
         )
     )
-    summary["exception_rate"] = np.where(
-        summary["population_count"] > 0,
-        summary["exception_count"] / summary["population_count"],
-        0.0,
+    summary["exception_rate"] = safe_divide(
+        summary["exception_count"],
+        summary["population_count"],
     )
     summary["score"] = (1 - summary["exception_rate"]).clip(lower=0) * 100
     summary["status"] = summary["score"].map(quality_status)

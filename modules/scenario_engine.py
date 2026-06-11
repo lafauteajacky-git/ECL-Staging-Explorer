@@ -10,6 +10,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from modules.calculation_utils import safe_divide
+
 
 DEFAULT_SCENARIOS = {
     "Baseline": {"weight": 0.60, "pd_multiplier": 1.00, "lgd_multiplier": 1.00},
@@ -111,7 +113,7 @@ def calculate_all_scenarios(staged_portfolio: pd.DataFrame, config: dict[str, di
     weights = scenario_config_to_frame(scenario_config)[["scenario", "weight", "pd_multiplier", "lgd_multiplier"]]
     summary = summary.merge(weights, on="scenario", how="left")
     summary["weighted_ecl_contribution"] = summary["ecl"] * summary["weight"]
-    summary["coverage_ratio"] = np.where(summary["ead"] > 0, summary["ecl"] / summary["ead"], 0.0)
+    summary["coverage_ratio"] = safe_divide(summary["ecl"], summary["ead"])
     return line_items, summary
 
 
@@ -130,9 +132,9 @@ def calculate_weighted_ecl_summary(scenario_summary: pd.DataFrame) -> dict[str, 
         "ecl_upside": float(ecl_by_scenario.get("Upside", 0.0)),
         "ecl_weighted": weighted,
         "downside_impact_amount": downside_impact,
-        "downside_impact_pct": downside_impact / baseline if baseline else 0.0,
+        "downside_impact_pct": safe_divide(downside_impact, baseline),
         "weighted_impact_amount": weighted_impact,
-        "weighted_impact_pct": weighted_impact / baseline if baseline else 0.0,
+        "weighted_impact_pct": safe_divide(weighted_impact, baseline),
     }
 
 
@@ -147,10 +149,9 @@ def calculate_downside_impact_by_stage(scenario_line_items: pd.DataFrame) -> pd.
         .reset_index()
     )
     by_stage["downside_impact_amount"] = by_stage.get("Downside", 0.0) - by_stage.get("Baseline", 0.0)
-    by_stage["downside_impact_pct"] = np.where(
-        by_stage.get("Baseline", 0.0) > 0,
-        by_stage["downside_impact_amount"] / by_stage.get("Baseline", 0.0),
-        0.0,
+    by_stage["downside_impact_pct"] = safe_divide(
+        by_stage["downside_impact_amount"],
+        by_stage.get("Baseline", pd.Series(0.0, index=by_stage.index)),
     )
     return by_stage
 
