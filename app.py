@@ -1398,31 +1398,7 @@ def main() -> None:
         render_staging_migration_analysis(staged)
 
     elif selected_page == "ECL Calculation":
-        st.subheader("Calcul ECL")
-        st.dataframe(
-            ecl_portfolio[
-                [
-                    "loan_id",
-                    "client_id",
-                    "product_type",
-                    "sector",
-                    "stage",
-                    "stage_reason",
-                    "stage_comment",
-                    "ead",
-                    "pd_12m",
-                    "pd_lifetime",
-                    "pd_used_for_ecl",
-                    "lgd",
-                    "ecl",
-                    "coverage_ratio",
-                    "data_quality_status",
-                    "review_required",
-                    "review_reason",
-                ]
-            ],
-            width="stretch",
-        )
+        render_ecl_calculation_dashboard(ecl_portfolio)
 
     elif selected_page == "Macro Scenarios":
         render_macro_scenarios(
@@ -1923,6 +1899,249 @@ def render_portfolio_dashboard(portfolio: pd.DataFrame, metrics: dict[str, float
         )
         maturity_distribution.update_layout(height=360, yaxis_title="Nombre d'expositions")
         st.plotly_chart(maturity_distribution, width="stretch")
+
+
+def render_ecl_calculation_dashboard(ecl_portfolio: pd.DataFrame) -> None:
+    """Render a filtered visual analysis of model ECL results."""
+    st.subheader("Calcul ECL")
+    st.write(
+        "Analyse des pertes de credit attendues avant scenarios macroeconomiques et overlays. "
+        "Les filtres permettent d'isoler un produit puis les secteurs disponibles sur ce perimetre."
+    )
+
+    product_options = ["Tous les produits"] + sorted(
+        ecl_portfolio["product_type"].dropna().astype(str).unique().tolist()
+    )
+    if st.session_state.get("ecl_product_filter") not in product_options:
+        st.session_state["ecl_product_filter"] = product_options[0]
+
+    filter_col1, filter_col2 = st.columns(2)
+    with filter_col1:
+        selected_product = st.selectbox(
+            "Type de produit",
+            options=product_options,
+            key="ecl_product_filter",
+        )
+
+    product_scope = ecl_portfolio.copy()
+    if selected_product != "Tous les produits":
+        product_scope = product_scope.loc[product_scope["product_type"].eq(selected_product)].copy()
+
+    sector_options = ["Tous les secteurs"] + sorted(
+        product_scope["sector"].dropna().astype(str).unique().tolist()
+    )
+    if st.session_state.get("ecl_sector_filter") not in sector_options:
+        st.session_state["ecl_sector_filter"] = sector_options[0]
+    with filter_col2:
+        selected_sector = st.selectbox(
+            "Secteur",
+            options=sector_options,
+            key="ecl_sector_filter",
+            help="La liste des secteurs depend du type de produit selectionne.",
+        )
+
+    filtered = product_scope.copy()
+    if selected_sector != "Tous les secteurs":
+        filtered = filtered.loc[filtered["sector"].eq(selected_sector)].copy()
+
+    if filtered.empty:
+        st.warning("Aucune exposition ne correspond aux filtres selectionnes.")
+        return
+
+    filtered["ead"] = pd.to_numeric(filtered["ead"], errors="coerce").fillna(0)
+    filtered["ecl"] = pd.to_numeric(filtered["ecl"], errors="coerce").fillna(0)
+    total_ead = float(filtered["ead"].sum())
+    total_ecl = float(filtered["ecl"].sum())
+    coverage_ratio = total_ecl / total_ead if total_ead else 0.0
+
+    kpi_cols = st.columns(4)
+    with kpi_cols[0]:
+        render_kpi_card(
+            "Expositions",
+            f"{len(filtered):,}".replace(",", " "),
+            "Perimetre filtre",
+        )
+    with kpi_cols[1]:
+        render_kpi_card("EAD totale", format_compact_currency(total_ead), "Exposure at Default")
+    with kpi_cols[2]:
+        render_kpi_card("ECL totale", format_compact_currency(total_ecl), "Avant scenarios et overlays")
+    with kpi_cols[3]:
+        render_kpi_card("Taux de couverture", f"{coverage_ratio:.2%}", "ECL / EAD")
+
+    stage_order = ["Stage 1", "Stage 2", "Stage 3"]
+    stage_summary = (
+        filtered.groupby("stage", as_index=False)
+        .agg(
+            exposure_count=("loan_id", "count"),
+            ead=("ead", "sum"),
+            ecl=("ecl", "sum"),
+        )
+        .set_index("stage")
+        .reindex(stage_order, fill_value=0)
+        .reset_index()
+    )
+    stage_summary["coverage_ratio"] = np.where(
+        stage_summary["ead"].ne(0),
+        stage_summary["ecl"] / stage_summary["ead"],
+        0,
+    )
+    stage_summary["ecl_share"] = (
+        stage_summary["ecl"] / total_ecl if total_ecl else 0
+    )
+
+    st.markdown("#### ECL par stage")
+    chart_left, chart_right = st.columns([1.15, 0.85])
+    with chart_left:
+        stage_figure = go.Figure()
+        stage_figure.add_trace(
+            go.Bar(
+                x=stage_summary["stage"],
+                y=stage_summary["ecl"],
+                name="ECL",
+                marker_color=["#8298AA", "#F1A986", "#0B2B46"],
+                text=[format_compact_currency(value) for value in stage_summary["ecl"]],
+                textposition="outside",
+                hovertemplate="<b>%{x}</b><br>ECL : %{y:,.0f} EUR<extra></extra>",
+            )
+        )
+        stage_figure.add_trace(
+            go.Scatter(
+                x=stage_summary["stage"],
+                y=stage_summary["coverage_ratio"],
+                name="Taux de couverture",
+                mode="lines+markers+text",
+                text=[f"{value:.1%}" for value in stage_summary["coverage_ratio"]],
+                textposition="top center",
+                line=dict(color="#14664A", width=3),
+                marker=dict(size=9),
+                yaxis="y2",
+                hovertemplate="<b>%{x}</b><br>Couverture : %{y:.2%}<extra></extra>",
+            )
+        )
+        stage_figure.update_layout(
+            title="Montant ECL et taux de couverture",
+            height=430,
+            xaxis_title="",
+            yaxis=dict(title="ECL (EUR)", showgrid=True, gridcolor="rgba(11,43,70,0.08)"),
+            yaxis2=dict(
+                title="Taux de couverture",
+                overlaying="y",
+                side="right",
+                tickformat=".0%",
+                rangemode="tozero",
+            ),
+            legend=dict(orientation="h", y=1.12, x=0),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=20, r=20, t=80, b=35),
+        )
+        st.plotly_chart(stage_figure, width="stretch")
+
+    with chart_right:
+        if total_ecl:
+            ecl_share_figure = px.pie(
+                stage_summary.loc[stage_summary["ecl"].gt(0)],
+                names="stage",
+                values="ecl",
+                hole=0.62,
+                title="Contribution de chaque stage a l'ECL",
+                color="stage",
+                color_discrete_map={
+                    "Stage 1": "#8298AA",
+                    "Stage 2": "#F1A986",
+                    "Stage 3": "#0B2B46",
+                },
+            )
+            ecl_share_figure.update_traces(
+                textposition="inside",
+                textinfo="label+percent",
+                hovertemplate="<b>%{label}</b><br>ECL : %{value:,.0f} EUR<br>Part : %{percent}<extra></extra>",
+            )
+            ecl_share_figure.update_layout(
+                height=430,
+                showlegend=False,
+                paper_bgcolor="rgba(0,0,0,0)",
+                margin=dict(l=10, r=10, t=70, b=25),
+            )
+            st.plotly_chart(ecl_share_figure, width="stretch")
+        else:
+            st.info("Aucune ECL positive sur le perimetre selectionne.")
+
+    st.markdown("#### Profil du perimetre selectionne")
+    profile_left, profile_right = st.columns(2)
+    with profile_left:
+        count_figure = px.bar(
+            stage_summary,
+            x="stage",
+            y="exposure_count",
+            text="exposure_count",
+            title="Nombre d'expositions par stage",
+            color="stage",
+            color_discrete_map={
+                "Stage 1": "#8298AA",
+                "Stage 2": "#F1A986",
+                "Stage 3": "#0B2B46",
+            },
+        )
+        count_figure.update_layout(
+            height=360,
+            xaxis_title="",
+            yaxis_title="Nombre d'expositions",
+            showlegend=False,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(count_figure, width="stretch")
+
+    with profile_right:
+        reason_summary = (
+            filtered.groupby("stage_reason", as_index=False)
+            .agg(ecl=("ecl", "sum"))
+            .sort_values("ecl", ascending=True)
+        )
+        reason_figure = px.bar(
+            reason_summary,
+            x="ecl",
+            y="stage_reason",
+            orientation="h",
+            text_auto=".3s",
+            title="ECL par motif de staging",
+            color_discrete_sequence=["#0B2B46"],
+        )
+        reason_figure.update_layout(
+            height=max(360, 38 * len(reason_summary)),
+            xaxis_title="ECL (EUR)",
+            yaxis_title="",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(reason_figure, width="stretch")
+
+    with st.expander("Consulter le detail des calculs ECL", expanded=False):
+        st.dataframe(
+            filtered[
+                [
+                    "loan_id",
+                    "client_id",
+                    "product_type",
+                    "sector",
+                    "stage",
+                    "stage_reason",
+                    "ead",
+                    "pd_12m",
+                    "pd_lifetime",
+                    "pd_used_for_ecl",
+                    "lgd",
+                    "ecl",
+                    "coverage_ratio",
+                    "data_quality_status",
+                    "review_required",
+                    "review_reason",
+                ]
+            ],
+            width="stretch",
+            hide_index=True,
+        )
 
 
 def render_transition_heatmap(
