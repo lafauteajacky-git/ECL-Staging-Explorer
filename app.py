@@ -131,6 +131,145 @@ def load_synthetic_portfolio(
     )
 
 
+@st.cache_data(show_spinner=False, max_entries=8)
+def calculate_cached_portfolio_results(portfolio: pd.DataFrame) -> dict:
+    """Calculate portfolio-dependent results once per generated portfolio."""
+    findings = run_data_quality_checks(portfolio)
+    raw_quality_tests = run_raw_data_quality_tests(portfolio)
+    staged = calculate_lgd(
+        assign_stage(portfolio),
+        scenario="Baseline",
+        preserve_missing_lgd=True,
+    )
+    ecl_portfolio = build_review_flags(calculate_ecl(staged), findings)
+    lifetime_pd_term_structure = build_lifetime_pd_term_structure(ecl_portfolio)
+    staging_transition_summary = (
+        staged.groupby(
+            ["previous_stage", "stage", "transition_rule", "probation_status"],
+            as_index=False,
+        )
+        .agg(
+            exposure_count=("loan_id", "count"),
+            ead=("ead", "sum"),
+        )
+        .sort_values(
+            ["previous_stage", "stage", "exposure_count"],
+            ascending=[True, True, False],
+        )
+    )
+    business_alerts = run_business_consistency_checks(ecl_portfolio)
+    return {
+        "findings": findings,
+        "dq_summary": summarize_quality_findings(findings),
+        "raw_quality_tests": raw_quality_tests,
+        "raw_quality_metrics": build_raw_quality_metrics(
+            portfolio,
+            raw_quality_tests,
+        ),
+        "raw_quality_dimensions": build_raw_quality_dimension_summary(
+            raw_quality_tests
+        ),
+        "raw_column_profile": build_raw_column_profile(portfolio),
+        "staged": staged,
+        "ecl_portfolio": ecl_portfolio,
+        "risk_parameter_summary": summarize_risk_parameters(ecl_portfolio),
+        "lgd_summary": summarize_lgd(ecl_portfolio),
+        "lgd_by_stage": aggregate_lgd_by_dimension(ecl_portfolio, "stage"),
+        "lgd_by_product": aggregate_lgd_by_dimension(
+            ecl_portfolio,
+            "product_type",
+        ),
+        "lgd_by_collateral": aggregate_lgd_by_dimension(
+            ecl_portfolio,
+            "collateral_type",
+        ),
+        "lgd_sensitivity": build_lgd_sensitivity(ecl_portfolio),
+        "lgd_waterfall": build_lgd_waterfall(ecl_portfolio),
+        "lifetime_pd_term_structure": lifetime_pd_term_structure,
+        "lifetime_pd_curve": aggregate_lifetime_pd_curve(
+            lifetime_pd_term_structure,
+            "stage",
+        ),
+        "ecl_by_stage": aggregate_ecl_by_stage(ecl_portfolio),
+        "ecl_by_product": aggregate_ecl_by_dimension(
+            ecl_portfolio,
+            "product_type",
+        ),
+        "ecl_by_sector": aggregate_ecl_by_dimension(ecl_portfolio, "sector"),
+        "metrics": build_dashboard_metrics(ecl_portfolio, findings),
+        "business_alerts": business_alerts,
+        "business_summary": summarize_business_consistency(
+            business_alerts,
+            len(ecl_portfolio),
+        ),
+        "migration_matrix": build_migration_matrix(ecl_portfolio),
+        "top_contributors": build_top_ecl_contributors(ecl_portfolio),
+        "staging_transition_summary": staging_transition_summary,
+    }
+
+
+@st.cache_data(show_spinner=False, max_entries=16)
+def calculate_cached_scenario_results(
+    ecl_portfolio: pd.DataFrame,
+    scenario_config: dict,
+) -> dict:
+    """Calculate scenario outputs only when portfolio or assumptions change."""
+    scenario_parameters = scenario_config_to_frame(scenario_config)
+    scenario_line_items, scenario_summary = calculate_all_scenarios(
+        ecl_portfolio,
+        scenario_config,
+    )
+    scenario_metrics = calculate_weighted_ecl_summary(scenario_summary)
+    downside_by_stage = calculate_downside_impact_by_stage(scenario_line_items)
+    return {
+        "scenario_parameters": scenario_parameters,
+        "scenario_line_items": scenario_line_items,
+        "scenario_summary": scenario_summary,
+        "scenario_metrics": scenario_metrics,
+        "downside_by_stage": downside_by_stage,
+        "scenario_insights": build_scenario_insights(
+            scenario_metrics,
+            downside_by_stage,
+            scenario_summary,
+        ),
+    }
+
+
+@st.cache_data(show_spinner=False, max_entries=16)
+def calculate_cached_overlay_results(
+    ecl_portfolio: pd.DataFrame,
+    enabled_overlays: tuple[str, ...],
+) -> dict:
+    """Calculate overlay outputs only when their activation changes."""
+    overlay_results, overlay_summary = apply_overlays(
+        ecl_portfolio,
+        list(enabled_overlays),
+    )
+    overlay_parameters = overlay_config_to_frame(
+        [
+            overlay
+            for overlay in PREDEFINED_OVERLAYS
+            if overlay["name"] in enabled_overlays
+        ]
+    )
+    overlay_metrics = build_overlay_metrics(overlay_results, overlay_summary)
+    return {
+        "overlay_results": overlay_results,
+        "overlay_summary": overlay_summary,
+        "overlay_parameters": overlay_parameters,
+        "overlay_metrics": overlay_metrics,
+        "overlay_waterfall": build_overlay_waterfall(
+            overlay_metrics,
+            overlay_summary,
+        ),
+        "overlay_insights": build_overlay_insights(
+            overlay_results,
+            overlay_summary,
+            overlay_metrics,
+        ),
+    }
+
+
 def default_demo_parameters() -> dict:
     """Return a fresh copy of the default demonstration settings."""
     return {
@@ -552,51 +691,62 @@ def main() -> None:
         st.stop()
 
     try:
-        findings = run_data_quality_checks(portfolio)
-        dq_summary = summarize_quality_findings(findings)
-        raw_quality_tests = run_raw_data_quality_tests(portfolio)
-        raw_quality_metrics = build_raw_quality_metrics(portfolio, raw_quality_tests)
-        raw_quality_dimensions = build_raw_quality_dimension_summary(raw_quality_tests)
-        raw_column_profile = build_raw_column_profile(portfolio)
-        staged = assign_stage(portfolio)
-        staged = calculate_lgd(
-            staged,
-            scenario="Baseline",
-            preserve_missing_lgd=True,
-        )
-        ecl_portfolio = calculate_ecl(staged)
-        ecl_portfolio = build_review_flags(ecl_portfolio, findings)
-        risk_parameter_summary = summarize_risk_parameters(ecl_portfolio)
-        lgd_summary = summarize_lgd(ecl_portfolio)
-        lgd_by_stage = aggregate_lgd_by_dimension(ecl_portfolio, "stage")
-        lgd_by_product = aggregate_lgd_by_dimension(ecl_portfolio, "product_type")
-        lgd_by_collateral = aggregate_lgd_by_dimension(
-            ecl_portfolio,
-            "collateral_type",
-        )
-        lgd_sensitivity = build_lgd_sensitivity(ecl_portfolio)
-        lgd_waterfall = build_lgd_waterfall(ecl_portfolio)
-        lifetime_pd_term_structure = build_lifetime_pd_term_structure(ecl_portfolio)
-        lifetime_pd_curve = aggregate_lifetime_pd_curve(
-            lifetime_pd_term_structure,
-            "stage",
-        )
-        ecl_by_stage = aggregate_ecl_by_stage(ecl_portfolio)
-        ecl_by_product = aggregate_ecl_by_dimension(ecl_portfolio, "product_type")
-        ecl_by_sector = aggregate_ecl_by_dimension(ecl_portfolio, "sector")
-        metrics = build_dashboard_metrics(ecl_portfolio, findings)
-        scenario_parameters = scenario_config_to_frame(scenario_config)
-        scenario_line_items, scenario_summary = calculate_all_scenarios(ecl_portfolio, scenario_config)
-        scenario_metrics = calculate_weighted_ecl_summary(scenario_summary)
-        downside_by_stage = calculate_downside_impact_by_stage(scenario_line_items)
-        scenario_insights = build_scenario_insights(scenario_metrics, downside_by_stage, scenario_summary)
-        overlay_results, overlay_summary = apply_overlays(ecl_portfolio, enabled_overlays)
-        overlay_parameters = overlay_config_to_frame([overlay for overlay in PREDEFINED_OVERLAYS if overlay["name"] in enabled_overlays])
-        overlay_metrics = build_overlay_metrics(overlay_results, overlay_summary)
-        overlay_waterfall = build_overlay_waterfall(overlay_metrics, overlay_summary)
-        overlay_insights = build_overlay_insights(overlay_results, overlay_summary, overlay_metrics)
-        business_alerts = run_business_consistency_checks(ecl_portfolio)
-        business_summary = summarize_business_consistency(business_alerts, len(ecl_portfolio))
+        with st.spinner("Calcul des indicateurs du portefeuille..."):
+            portfolio_results = calculate_cached_portfolio_results(portfolio)
+            scenario_results = calculate_cached_scenario_results(
+                portfolio_results["ecl_portfolio"],
+                scenario_config,
+            )
+            overlay_calculations = calculate_cached_overlay_results(
+                portfolio_results["ecl_portfolio"],
+                tuple(enabled_overlays),
+            )
+
+        findings = portfolio_results["findings"]
+        dq_summary = portfolio_results["dq_summary"]
+        raw_quality_tests = portfolio_results["raw_quality_tests"]
+        raw_quality_metrics = portfolio_results["raw_quality_metrics"]
+        raw_quality_dimensions = portfolio_results["raw_quality_dimensions"]
+        raw_column_profile = portfolio_results["raw_column_profile"]
+        staged = portfolio_results["staged"]
+        ecl_portfolio = portfolio_results["ecl_portfolio"]
+        risk_parameter_summary = portfolio_results["risk_parameter_summary"]
+        lgd_summary = portfolio_results["lgd_summary"]
+        lgd_by_stage = portfolio_results["lgd_by_stage"]
+        lgd_by_product = portfolio_results["lgd_by_product"]
+        lgd_by_collateral = portfolio_results["lgd_by_collateral"]
+        lgd_sensitivity = portfolio_results["lgd_sensitivity"]
+        lgd_waterfall = portfolio_results["lgd_waterfall"]
+        lifetime_pd_term_structure = portfolio_results[
+            "lifetime_pd_term_structure"
+        ]
+        lifetime_pd_curve = portfolio_results["lifetime_pd_curve"]
+        ecl_by_stage = portfolio_results["ecl_by_stage"]
+        ecl_by_product = portfolio_results["ecl_by_product"]
+        ecl_by_sector = portfolio_results["ecl_by_sector"]
+        metrics = portfolio_results["metrics"]
+        business_alerts = portfolio_results["business_alerts"]
+        business_summary = portfolio_results["business_summary"]
+        migration_matrix = portfolio_results["migration_matrix"]
+        top_contributors = portfolio_results["top_contributors"]
+        staging_transition_summary = portfolio_results[
+            "staging_transition_summary"
+        ]
+
+        scenario_parameters = scenario_results["scenario_parameters"]
+        scenario_line_items = scenario_results["scenario_line_items"]
+        scenario_summary = scenario_results["scenario_summary"]
+        scenario_metrics = scenario_results["scenario_metrics"]
+        downside_by_stage = scenario_results["downside_by_stage"]
+        scenario_insights = scenario_results["scenario_insights"]
+
+        overlay_results = overlay_calculations["overlay_results"]
+        overlay_summary = overlay_calculations["overlay_summary"]
+        overlay_parameters = overlay_calculations["overlay_parameters"]
+        overlay_metrics = overlay_calculations["overlay_metrics"]
+        overlay_waterfall = overlay_calculations["overlay_waterfall"]
+        overlay_insights = overlay_calculations["overlay_insights"]
+
         client_discussion_points = build_client_discussion_points(
             active_demo_profile,
             business_summary,
@@ -604,8 +754,6 @@ def main() -> None:
             scenario_metrics,
             overlay_metrics,
         )
-        migration_matrix = build_migration_matrix(ecl_portfolio)
-        top_contributors = build_top_ecl_contributors(ecl_portfolio)
         insights = build_management_insights(
             ecl_portfolio,
             ecl_by_stage,
@@ -647,17 +795,6 @@ def main() -> None:
             ]
         )
         audit_view["lgd_sensitivity"] = lgd_sensitivity
-        staging_transition_summary = (
-            staged.groupby(
-                ["previous_stage", "stage", "transition_rule", "probation_status"],
-                as_index=False,
-            )
-            .agg(
-                exposure_count=("loan_id", "count"),
-                ead=("ead", "sum"),
-            )
-            .sort_values(["previous_stage", "stage", "exposure_count"], ascending=[True, True, False])
-        )
         audit_view["staging_transitions"] = staging_transition_summary
         dashboard_summary = build_dashboard_summary_table(metrics, scenario_metrics | overlay_metrics | business_summary)
         detailed_audit_trail = build_audit_trail(

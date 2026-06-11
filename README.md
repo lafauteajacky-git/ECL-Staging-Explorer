@@ -59,6 +59,8 @@ La V1 ne propose aucun import de fichier externe. Tous les portefeuilles sont ge
 - Sensibilites LGD `Baseline`, `Downside` et `Upside`.
 - Exports `Risk Parameters`, `Lifetime PD Curve`, `LGD Parameters` et
   `LGD Sensitivity`.
+- Calcul des courbes lifetime vectorise et cache des resultats par portefeuille,
+  scenario et configuration d'overlays pour fluidifier la navigation Streamlit.
 
 ## Installation
 

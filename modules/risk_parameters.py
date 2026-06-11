@@ -77,44 +77,74 @@ def build_lifetime_pd_term_structure(portfolio: pd.DataFrame) -> pd.DataFrame:
     if portfolio.empty:
         return pd.DataFrame(columns=columns)
 
-    frames: list[pd.DataFrame] = []
-    for _, row in portfolio.iterrows():
-        pd_12m = pd.to_numeric(pd.Series([row.get("pd_12m")]), errors="coerce").iloc[0]
-        maturity = pd.to_numeric(
-            pd.Series([row.get("residual_maturity_months")]),
-            errors="coerce",
-        ).iloc[0]
-        if pd.isna(pd_12m) or pd.isna(maturity):
-            continue
+    source = portfolio.reset_index(drop=True).copy()
+    source["pd_12m"] = pd.to_numeric(source["pd_12m"], errors="coerce")
+    source["residual_maturity_months"] = pd.to_numeric(
+        source["residual_maturity_months"],
+        errors="coerce",
+    )
+    source = source.loc[
+        source["pd_12m"].notna()
+        & source["residual_maturity_months"].notna()
+    ].reset_index(drop=True)
+    if source.empty:
+        return pd.DataFrame(columns=columns)
 
-        effective_maturity = max(float(maturity), 12.0)
-        annual_points = max(1, int(np.ceil(effective_maturity / 12.0)))
-        horizons = np.minimum(np.arange(1, annual_points + 1) * 12.0, effective_maturity)
-        cumulative = calculate_lifetime_pd(
-            np.repeat(float(pd_12m), annual_points),
-            horizons,
-        )
-        marginal = np.diff(np.concatenate(([0.0], cumulative)))
-        frame = pd.DataFrame(
-            {
-                "loan_id": row.get("loan_id"),
-                "stage": row.get("stage", "Not staged"),
-                "product_type": row.get("product_type", "Unknown"),
-                "sector": row.get("sector", "Unknown"),
-                "current_rating": row.get("current_rating", np.nan),
-                "ead": row.get("ead", 0.0),
-                "pd_12m": float(pd_12m),
-                "residual_maturity_months": float(maturity),
-                "year": np.arange(1, annual_points + 1),
-                "horizon_months": horizons,
-                "survival_probability": 1.0 - cumulative,
-                "cumulative_pd": cumulative,
-                "marginal_pd": marginal,
-            }
-        )
-        frames.append(frame)
+    effective_maturity = np.maximum(
+        source["residual_maturity_months"].to_numpy(dtype=float),
+        12.0,
+    )
+    annual_points = np.maximum(
+        np.ceil(effective_maturity / 12.0).astype(int),
+        1,
+    )
+    source_positions = np.repeat(np.arange(len(source)), annual_points)
+    group_starts = np.repeat(
+        np.cumsum(np.r_[0, annual_points[:-1]]),
+        annual_points,
+    )
+    year = np.arange(int(annual_points.sum())) - group_starts + 1
+    repeated_maturity = effective_maturity[source_positions]
+    horizon_months = np.minimum(year * 12.0, repeated_maturity)
+    previous_horizon_months = np.where(year == 1, 0.0, (year - 1) * 12.0)
+    repeated_pd = source["pd_12m"].to_numpy(dtype=float)[source_positions]
+    cumulative_pd = calculate_lifetime_pd(repeated_pd, horizon_months)
+    previous_cumulative_pd = np.where(
+        previous_horizon_months == 0,
+        0.0,
+        calculate_lifetime_pd(repeated_pd, previous_horizon_months),
+    )
+    marginal_pd = cumulative_pd - previous_cumulative_pd
 
-    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=columns)
+    def repeated_column(column: str, default):
+        values = (
+            source[column].to_numpy()
+            if column in source.columns
+            else np.full(len(source), default)
+        )
+        return values[source_positions]
+
+    return pd.DataFrame(
+        {
+            "loan_id": repeated_column("loan_id", None),
+            "stage": repeated_column("stage", "Not staged"),
+            "product_type": repeated_column("product_type", "Unknown"),
+            "sector": repeated_column("sector", "Unknown"),
+            "current_rating": repeated_column("current_rating", np.nan),
+            "ead": repeated_column("ead", 0.0),
+            "pd_12m": repeated_pd,
+            "residual_maturity_months": repeated_column(
+                "residual_maturity_months",
+                np.nan,
+            ),
+            "year": year,
+            "horizon_months": horizon_months,
+            "survival_probability": 1.0 - cumulative_pd,
+            "cumulative_pd": cumulative_pd,
+            "marginal_pd": marginal_pd,
+        },
+        columns=columns,
+    )
 
 
 def summarize_risk_parameters(portfolio: pd.DataFrame) -> dict[str, float | str]:

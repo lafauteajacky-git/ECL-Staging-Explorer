@@ -77,6 +77,19 @@ def test_term_structure_is_monotonic_and_marginals_reconcile():
     )
 
 
+def test_term_structure_preserves_partial_final_year():
+    portfolio = _portfolio().iloc[[0]].assign(residual_maturity_months=18)
+    curve = build_lifetime_pd_term_structure(portfolio)
+
+    assert curve["horizon_months"].tolist() == [12.0, 18.0]
+    assert curve["cumulative_pd"].iloc[-1] == pytest.approx(
+        1 - (1 - 0.02) ** 1.5
+    )
+    assert curve["marginal_pd"].sum() == pytest.approx(
+        curve["cumulative_pd"].iloc[-1]
+    )
+
+
 def test_risk_parameter_summary_and_curve_are_ead_weighted():
     enriched = add_lifetime_pd_metrics(_portfolio())
     term_structure = build_lifetime_pd_term_structure(enriched)
