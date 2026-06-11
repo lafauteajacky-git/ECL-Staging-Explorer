@@ -1959,7 +1959,7 @@ def render_transition_heatmap(
     figure.update_layout(
         title=title,
         height=max(430, 38 * len(matrix.index)),
-        xaxis_title=x_title,
+        xaxis_title=None,
         yaxis_title=y_title,
         xaxis=dict(
             type="category",
@@ -1975,7 +1975,7 @@ def render_transition_heatmap(
         ),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=30, r=20, t=105, b=30),
+        margin=dict(l=30, r=20, t=82, b=30),
     )
     st.plotly_chart(
         figure,
