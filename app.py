@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from html import escape
 from textwrap import dedent
 
 import pandas as pd
@@ -956,6 +957,100 @@ def load_demo_parameters_from_state():
     )
 
 
+def render_active_demo_context(
+    source: str,
+    demo_profile: str,
+    data_quality_level: str,
+    portfolio: pd.DataFrame,
+    uploaded_file=None,
+) -> None:
+    """Render the active demonstration context on every application page."""
+    generation = st.session_state.get("portfolio_generation_summary", {})
+    if source == "Charger un fichier":
+        file_name = getattr(uploaded_file, "name", "Fichier charge")
+        source_label = "Fichier utilisateur"
+        source_detail = file_name
+    else:
+        source_label = "Portefeuille synthetique"
+        source_detail = "Generation reproductible"
+
+    exposure_count = f"{len(portfolio):,}".replace(",", " ")
+    trace_items = []
+    if generation.get("generated_at"):
+        trace_items.append(f"Genere le {generation['generated_at']}")
+    if generation.get("seed") is not None:
+        trace_items.append(f"Seed {generation['seed']}")
+    if generation.get("run_id"):
+        trace_items.append(str(generation["run_id"]))
+    trace_line = " | ".join(trace_items) or "Contexte conserve pendant toute la session"
+
+    st.markdown(
+        f"""
+        <section style="
+            margin: 16px 0 24px;
+            padding: 18px 20px 14px;
+            border: 1px solid rgba(11,43,70,0.16);
+            border-left: 5px solid #f1a986;
+            border-radius: 14px;
+            background: linear-gradient(105deg, rgba(11,43,70,0.98), rgba(23,72,102,0.96));
+            box-shadow: 0 14px 32px rgba(11,43,70,0.10);
+            color: #ffffff;
+        ">
+            <div style="
+                margin-bottom: 12px;
+                color: #f1a986;
+                font-size: 0.72rem;
+                font-weight: 900;
+                letter-spacing: 0.09em;
+                text-transform: uppercase;
+            ">Contexte actif de la demonstration</div>
+            <div style="
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 12px;
+            ">
+                <div style="padding-right:12px;border-right:1px solid rgba(255,255,255,0.16);">
+                    <div style="font-size:0.68rem;color:rgba(255,255,255,0.65);text-transform:uppercase;font-weight:800;">
+                        1. Source du portefeuille
+                    </div>
+                    <div style="margin-top:5px;font-size:1rem;font-weight:850;">{escape(source_label)}</div>
+                    <div style="font-size:0.76rem;color:rgba(255,255,255,0.72);">{escape(source_detail)}</div>
+                </div>
+                <div style="padding-right:12px;border-right:1px solid rgba(255,255,255,0.16);">
+                    <div style="font-size:0.68rem;color:rgba(255,255,255,0.65);text-transform:uppercase;font-weight:800;">
+                        2. Profil du portefeuille
+                    </div>
+                    <div style="margin-top:5px;font-size:1rem;font-weight:850;">{escape(demo_profile)}</div>
+                    <div style="font-size:0.76rem;color:rgba(255,255,255,0.72);">Profil de risque simule</div>
+                </div>
+                <div style="padding-right:12px;border-right:1px solid rgba(255,255,255,0.16);">
+                    <div style="font-size:0.68rem;color:rgba(255,255,255,0.65);text-transform:uppercase;font-weight:800;">
+                        3. Nombre d'expositions
+                    </div>
+                    <div style="margin-top:5px;font-size:1rem;font-weight:850;">{exposure_count}</div>
+                    <div style="font-size:0.76rem;color:rgba(255,255,255,0.72);">Lignes analysees</div>
+                </div>
+                <div>
+                    <div style="font-size:0.68rem;color:rgba(255,255,255,0.65);text-transform:uppercase;font-weight:800;">
+                        4. Qualite des donnees
+                    </div>
+                    <div style="margin-top:5px;font-size:1rem;font-weight:850;">{escape(data_quality_level)}</div>
+                    <div style="font-size:0.76rem;color:rgba(255,255,255,0.72);">Niveau synthetique selectionne</div>
+                </div>
+            </div>
+            <div style="
+                margin-top: 13px;
+                padding-top: 10px;
+                border-top: 1px solid rgba(255,255,255,0.14);
+                color: rgba(255,255,255,0.62);
+                font-size: 0.72rem;
+            ">{escape(trace_line)}</div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def main() -> None:
     apply_auria_theme()
 
@@ -1052,6 +1147,14 @@ def main() -> None:
         st.error("Calcul impossible : colonnes obligatoires absentes.")
         st.write(", ".join(missing_columns))
         st.stop()
+
+    render_active_demo_context(
+        source,
+        active_demo_profile,
+        st.session_state.get("data_quality_level", data_quality_level),
+        portfolio,
+        uploaded_file,
+    )
 
     try:
         findings = run_data_quality_checks(portfolio)
@@ -1471,14 +1574,6 @@ def render_portfolio_summary(
     metrics: dict[str, float] | None,
 ) -> None:
     """Render an exhaustive description of the active synthetic portfolio."""
-    generation = st.session_state.get("portfolio_generation_summary", {})
-    if generation:
-        st.success(
-            f"Portefeuille actif : {generation.get('generated_exposures', 0):,} expositions generees "
-            f"le {generation.get('generated_at', '')} - seed {generation.get('seed', '')} - "
-            f"{generation.get('run_id', '')}.".replace(",", " ")
-        )
-
     if portfolio is None or portfolio.empty:
         st.info(f"Profil selectionne : {demo_profile}. {PROFILE_CONTEXT.get(demo_profile, '')}")
         return
