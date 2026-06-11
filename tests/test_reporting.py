@@ -126,9 +126,17 @@ def test_excel_export_includes_v2_risk_parameter_sheets():
         lifetime_pd_curve=pd.DataFrame(
             {"stage": ["Stage 1"], "year": [1], "cumulative_pd": [0.02]}
         ),
+        lgd_parameters=pd.DataFrame(
+            {"loan_id": ["LN-1"], "lgd": [0.40], "collateral_haircut": [0.20]}
+        ),
+        lgd_sensitivity=pd.DataFrame(
+            {"scenario": ["Baseline"], "lgd": [0.40]}
+        ),
     )
 
     workbook = load_workbook(BytesIO(payload), read_only=True)
 
     assert "Risk Parameters" in workbook.sheetnames
     assert "Lifetime PD Curve" in workbook.sheetnames
+    assert "LGD Parameters" in workbook.sheetnames
+    assert "LGD Sensitivity" in workbook.sheetnames

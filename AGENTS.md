@@ -45,6 +45,7 @@ pytest
 - `modules/staging_engine.py` : regles de staging MVP.
 - `modules/ecl_calculator.py` : calcul ECL simplifie.
 - `modules/risk_parameters.py` : calcul des PD lifetime, courbes cumulatives et synthese des parametres de risque.
+- `modules/lgd_engine.py` : calcul LGD pedagogique fonde sur les recouvrements, suretes, couts, delais et sensibilites.
 - `modules/scenario_engine.py` : scenarios macroeconomiques pedagogiques Baseline, Downside et Upside.
 - `modules/overlay_engine.py` : overlays manageriaux pedagogiques appliques a l'ECL avant overlay.
 - `modules/business_checks.py` : controles de coherence metier, storyline de demo et discussion points.

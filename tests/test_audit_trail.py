@@ -28,12 +28,18 @@ def test_build_audit_trail_returns_required_sections():
         pd.DataFrame({"loan_id": ["LN-1"], "ecl": [50]}),
         pd.DataFrame({"rule": ["Stage 1"]}),
         pd.DataFrame({"stage": ["Stage 1"]}),
+        lgd_summary={"lgd_ead_weighted": 0.40},
+        lgd_sensitivity=pd.DataFrame(
+            {"scenario": ["Baseline"], "lgd": [0.40]}
+        ),
     )
 
     assert "run_summary" in audit
     assert "scenario_parameters" in audit
     assert "overlay_summary" in audit
     assert "methodological_warnings" in audit
+    assert "lgd_summary" in audit
+    assert "lgd_sensitivity" in audit
     assert "run_id" in set(audit["run_summary"]["field"])
 
 

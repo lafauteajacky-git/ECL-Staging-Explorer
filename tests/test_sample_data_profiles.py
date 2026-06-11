@@ -66,6 +66,27 @@ def test_generated_portfolio_contains_calculated_lifetime_pd_fields():
     assert (portfolio["pd_lifetime"] >= portfolio["pd_12m"]).all()
 
 
+def test_generated_portfolio_contains_recovery_based_lgd_fields():
+    portfolio = generate_demo_portfolio(
+        profile="Balanced Portfolio",
+        n_exposures=100,
+        seed=7,
+    )
+
+    expected_fields = {
+        "lgd_method",
+        "collateral_type",
+        "collateral_value",
+        "collateral_haircut",
+        "liquidation_cost_rate",
+        "unsecured_recovery_rate",
+        "recovery_delay_months",
+        "recovery_cost_amount",
+    }
+    assert expected_fields.issubset(portfolio.columns)
+    assert portfolio["lgd"].between(0, 1).all()
+
+
 def test_all_data_quality_levels_preserve_portfolio_size():
     for level in DATA_QUALITY_LEVELS:
         portfolio = generate_demo_portfolio(

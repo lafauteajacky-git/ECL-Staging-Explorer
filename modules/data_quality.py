@@ -348,6 +348,64 @@ def run_raw_data_quality_tests(portfolio: pd.DataFrame) -> pd.DataFrame:
         ~pd.to_numeric(portfolio["lgd"], errors="coerce").between(0, 1, inclusive="both"),
         severity="Critical",
     )
+    optional_lgd_rate_controls = [
+        (
+            "VALID_COLLATERAL_HAIRCUT",
+            "collateral_haircut",
+            "Haircut de collateral compris entre 0% et 100%",
+        ),
+        (
+            "VALID_LIQUIDATION_COST_RATE",
+            "liquidation_cost_rate",
+            "Taux de cout de liquidation compris entre 0% et 100%",
+        ),
+        (
+            "VALID_UNSECURED_RECOVERY_RATE",
+            "unsecured_recovery_rate",
+            "Taux de recouvrement non garanti compris entre 0% et 100%",
+        ),
+    ]
+    for test_id, field, label in optional_lgd_rate_controls:
+        if field in portfolio:
+            values = pd.to_numeric(portfolio[field], errors="coerce")
+            add_test(
+                test_id,
+                "Validite",
+                label,
+                field,
+                ~values.between(0, 1, inclusive="both"),
+                severity="Critical",
+                recommendation=(
+                    "Corriger ou justifier l'hypothese de recouvrement avant "
+                    "le calcul de la LGD."
+                ),
+            )
+    if "collateral_value" in portfolio:
+        collateral_value = pd.to_numeric(
+            portfolio["collateral_value"],
+            errors="coerce",
+        )
+        add_test(
+            "VALID_COLLATERAL_VALUE",
+            "Validite",
+            "Valeur de collateral positive ou nulle",
+            "collateral_value",
+            collateral_value.lt(0) | collateral_value.isna(),
+            severity="Critical",
+        )
+    if "recovery_delay_months" in portfolio:
+        recovery_delay = pd.to_numeric(
+            portfolio["recovery_delay_months"],
+            errors="coerce",
+        )
+        add_test(
+            "VALID_RECOVERY_DELAY",
+            "Validite",
+            "Delai de recouvrement positif ou nul",
+            "recovery_delay_months",
+            recovery_delay.lt(0) | recovery_delay.isna(),
+            severity="Critical",
+        )
     add_test(
         "VALID_RATING_ORIGINATION",
         "Validite",

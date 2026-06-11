@@ -47,13 +47,44 @@ Cette approche suppose un taux de hasard annuel constant. La PD marginale corres
 
 Il n'y a pas de courbe PIT/TTC calibree, de matrice de transition, de segmentation modele, de vintage analysis ou de validation statistique.
 
-## LGD simplifiee
+## LGD fondee sur les recouvrements
 
-La LGD est generee comme un taux synthetique. Le MVP ne modelise pas les recouvrements, garanties, couts de recouvrement, haircuts de collateraux ou delais de recovery.
+Depuis la V2.1, la LGD est calculee par exposition selon une approche
+pedagogique de cash-flows de recouvrement :
+
+`LGD = 1 - valeur actualisee des recouvrements nets / EAD`
+
+Les recouvrements nets combinent :
+
+- une valeur de surete synthetique derivee de l'EAD et du LTV ;
+- un haircut dependant du type de surete ;
+- des couts de liquidation ;
+- un taux de recouvrement sur la fraction non garantie ;
+- un ajustement selon le rang de seniorite ;
+- des couts de recovery en montant ;
+- un delai de recouvrement ;
+- une actualisation au taux d'interet effectif.
+
+Les expositions Stage 2 et Stage 3 font l'objet d'hypotheses progressivement
+plus prudentes. Le Stage 3 integre notamment un haircut additionnel, un delai
+de workout plus long et un taux de recouvrement non garanti reduit.
+
+Trois sensibilites sont presentees :
+
+- `Baseline` : hypotheses centrales ;
+- `Downside` : haircuts, couts et delais renforces, recouvrement non garanti reduit ;
+- `Upside` : haircuts, couts et delais moderes, recouvrement non garanti ameliore.
+
+Ces hypotheses sont entierement synthetiques. Il n'y a ni calibration sur des
+donnees de defaut, ni segmentation modele, ni courbe de recovery empirique, ni
+prise en compte des garanties personnelles, rangs juridiques complexes,
+reappraisals, ventes de creances ou couts indirects exhaustifs.
 
 ## Scenarios macroeconomiques
 
-Les scenarios `Baseline`, `Downside` et `Upside` appliquent des multiplicateurs simples sur PD et LGD.
+Les scenarios `Baseline`, `Downside` et `Upside` appliquent des multiplicateurs
+simples sur PD et LGD. Lorsque les inputs de recouvrement sont disponibles, la
+LGD est egalement recalculee avec les hypotheses de recovery du scenario.
 
 Il n'y a pas de modele macroeconometrique reel, pas de variable PIB, chomage, taux ou immobilier, et pas de calibration statistique.
 

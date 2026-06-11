@@ -41,7 +41,11 @@ Message cle : la qualite des donnees conditionne la fiabilite de l'ECL.
 
 Ouvrir `Parametres de risque`.
 
-Presenter la PD 12 mois, la PD lifetime et la courbe cumulative par stage. Expliquer que la V2 utilise une hypothese de taux de hasard constant, transparente et facilement remplacable par des courbes calibrees dans une implementation client.
+Presenter la PD 12 mois, la PD lifetime et la courbe cumulative par stage.
+Expliquer que la V2 utilise une hypothese de taux de hasard constant,
+transparente et facilement remplacable par des courbes calibrees dans une
+implementation client. Presenter ensuite la LGD V2.1 : suretes, haircuts,
+couts, delais de recouvrement, actualisation et sensibilite downside.
 
 Montrer le score de coherence, les alertes et les recommandations.
 

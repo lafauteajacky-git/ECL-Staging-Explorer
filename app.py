@@ -37,6 +37,14 @@ from modules.data_quality import (
 from modules.data_types import coerce_boolean_series
 from modules.demo_config import APP_NAME, DEMO_DISCLAIMER_FR, EXPORT_FILE_PREFIX
 from modules.ecl_calculator import calculate_ecl
+from modules.lgd_engine import (
+    LGD_METHOD,
+    aggregate_lgd_by_dimension,
+    build_lgd_sensitivity,
+    build_lgd_waterfall,
+    calculate_lgd,
+    summarize_lgd,
+)
 from modules.migration_analysis import (
     build_average_migration_by_dimension,
     build_migration_breakdown,
@@ -465,7 +473,11 @@ def main() -> None:
     )
     portfolio_requires_risk_upgrade = (
         "portfolio" in st.session_state
-        and "pd_lifetime_method" not in st.session_state["portfolio"].columns
+        and (
+            "pd_lifetime_method" not in st.session_state["portfolio"].columns
+            or "lgd_method" not in st.session_state["portfolio"].columns
+            or "collateral_value" not in st.session_state["portfolio"].columns
+        )
     )
     if (
         generate_clicked
@@ -537,9 +549,23 @@ def main() -> None:
         raw_quality_dimensions = build_raw_quality_dimension_summary(raw_quality_tests)
         raw_column_profile = build_raw_column_profile(portfolio)
         staged = assign_stage(portfolio)
+        staged = calculate_lgd(
+            staged,
+            scenario="Baseline",
+            preserve_missing_lgd=True,
+        )
         ecl_portfolio = calculate_ecl(staged)
         ecl_portfolio = build_review_flags(ecl_portfolio, findings)
         risk_parameter_summary = summarize_risk_parameters(ecl_portfolio)
+        lgd_summary = summarize_lgd(ecl_portfolio)
+        lgd_by_stage = aggregate_lgd_by_dimension(ecl_portfolio, "stage")
+        lgd_by_product = aggregate_lgd_by_dimension(ecl_portfolio, "product_type")
+        lgd_by_collateral = aggregate_lgd_by_dimension(
+            ecl_portfolio,
+            "collateral_type",
+        )
+        lgd_sensitivity = build_lgd_sensitivity(ecl_portfolio)
+        lgd_waterfall = build_lgd_waterfall(ecl_portfolio)
         lifetime_pd_term_structure = build_lifetime_pd_term_structure(ecl_portfolio)
         lifetime_pd_curve = aggregate_lifetime_pd_curve(
             lifetime_pd_term_structure,
@@ -604,6 +630,13 @@ def main() -> None:
             ]
         )
         audit_view["lifetime_pd_curve"] = lifetime_pd_curve
+        audit_view["lgd_summary"] = pd.DataFrame(
+            [
+                {"metric": metric, "value": value}
+                for metric, value in lgd_summary.items()
+            ]
+        )
+        audit_view["lgd_sensitivity"] = lgd_sensitivity
         staging_transition_summary = (
             staged.groupby(
                 ["previous_stage", "stage", "transition_rule", "probation_status"],
@@ -640,6 +673,8 @@ def main() -> None:
             staging_transition_summary=staging_transition_summary,
             risk_parameter_summary=risk_parameter_summary,
             lifetime_pd_curve=lifetime_pd_curve,
+            lgd_summary=lgd_summary,
+            lgd_sensitivity=lgd_sensitivity,
         )
         committee_summary = generate_committee_summary(
             run_id,
@@ -687,6 +722,12 @@ def main() -> None:
             risk_parameter_summary,
             lifetime_pd_term_structure,
             lifetime_pd_curve,
+            lgd_summary,
+            lgd_by_stage,
+            lgd_by_product,
+            lgd_by_collateral,
+            lgd_sensitivity,
+            lgd_waterfall,
         )
 
     elif selected_page == "Staging":
@@ -817,6 +858,37 @@ def main() -> None:
                 "pd_lifetime_method",
             ]
         ]
+        lgd_parameter_columns = [
+            "loan_id",
+            "client_id",
+            "stage",
+            "product_type",
+            "sector",
+            "country",
+            "ead",
+            "collateral_flag",
+            "collateral_type",
+            "collateral_value",
+            "seniority",
+            "collateral_haircut",
+            "liquidation_cost_rate",
+            "unsecured_recovery_rate",
+            "recovery_delay_months",
+            "recovery_cost_amount",
+            "secured_recovery_amount",
+            "unsecured_recovery_amount",
+            "discounted_recovery_amount",
+            "lgd_seniority_multiplier",
+            "lgd",
+            "lgd_method",
+        ]
+        lgd_parameter_export = ecl_portfolio[
+            [
+                column
+                for column in lgd_parameter_columns
+                if column in ecl_portfolio.columns
+            ]
+        ]
         export_bytes = build_excel_export_bytes(
             portfolio,
             findings,
@@ -835,6 +907,8 @@ def main() -> None:
             discussion_points_to_frame(client_discussion_points),
             risk_parameters=risk_parameter_export,
             lifetime_pd_curve=lifetime_pd_curve,
+            lgd_parameters=lgd_parameter_export,
+            lgd_sensitivity=lgd_sensitivity,
         )
         if st.button("Exporter dans le dossier outputs"):
             try:
@@ -858,6 +932,8 @@ def main() -> None:
                     file_name=export_file_name,
                     risk_parameters=risk_parameter_export,
                     lifetime_pd_curve=lifetime_pd_curve,
+                    lgd_parameters=lgd_parameter_export,
+                    lgd_sensitivity=lgd_sensitivity,
                 )
                 st.success(f"Export cree : {output_path}")
             except Exception as exc:
@@ -2949,6 +3025,71 @@ def render_audit_trail(audit_trail: dict[str, pd.DataFrame]) -> None:
             r"\mathrm{PD}_{cum}(t)=1-\left(1-\mathrm{PD}_{12m}\right)^t"
         )
 
+    lgd_summary_table = audit_trail.get("lgd_summary", pd.DataFrame())
+    lgd_values = _audit_section_to_dict(
+        lgd_summary_table,
+        "metric",
+        "value",
+    )
+    if lgd_values:
+        st.markdown("#### LGD, suretes et recouvrements")
+        render_light_kpi_panel(
+            "Hypotheses de recouvrement du run",
+            [
+                (
+                    "LGD moyenne",
+                    f"{float(lgd_values.get('lgd_ead_weighted', 0)):.1%}",
+                    "Ponderee par l'EAD",
+                ),
+                (
+                    "LGD garantie",
+                    f"{float(lgd_values.get('lgd_secured_ead_weighted', 0)):.1%}",
+                    "Expositions avec collateral",
+                ),
+                (
+                    "LGD non garantie",
+                    f"{float(lgd_values.get('lgd_unsecured_ead_weighted', 0)):.1%}",
+                    "Expositions sans collateral",
+                ),
+                (
+                    "Delai de recovery",
+                    f"{float(lgd_values.get('average_recovery_delay_months', 0)):.0f} mois",
+                    "Moyenne du portefeuille",
+                ),
+            ],
+        )
+        st.latex(
+            r"\mathrm{LGD}=1-\frac{\mathrm{PV}("
+            r"\mathrm{recouvrements}-\mathrm{couts})}{\mathrm{EAD}}"
+        )
+        lgd_sensitivity = audit_trail.get("lgd_sensitivity", pd.DataFrame())
+        if (
+            lgd_sensitivity is not None
+            and not lgd_sensitivity.empty
+            and {"scenario", "lgd"}.issubset(lgd_sensitivity.columns)
+        ):
+            lgd_audit_figure = px.bar(
+                lgd_sensitivity,
+                x="scenario",
+                y="lgd",
+                color="scenario",
+                text_auto=".1%",
+                title="Sensibilite des hypotheses de recouvrement",
+                color_discrete_map={
+                    "Baseline": "#8298AA",
+                    "Downside": "#0B2B46",
+                    "Upside": "#F1A986",
+                },
+            )
+            lgd_audit_figure.update_layout(
+                height=330,
+                showlegend=False,
+                yaxis_tickformat=".0%",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(lgd_audit_figure, width="stretch")
+
     scenario_parameters = audit_trail.get("scenario_parameters", pd.DataFrame())
     scenario_results = audit_trail.get("scenario_results", pd.DataFrame())
     st.markdown("#### Scenarios macroeconomiques")
@@ -3181,8 +3322,14 @@ def render_risk_parameters(
     summary: dict[str, float | str],
     term_structure: pd.DataFrame,
     curve_by_stage: pd.DataFrame,
+    lgd_summary: dict[str, float | str],
+    lgd_by_stage: pd.DataFrame,
+    lgd_by_product: pd.DataFrame,
+    lgd_by_collateral: pd.DataFrame,
+    lgd_sensitivity: pd.DataFrame,
+    lgd_waterfall: pd.DataFrame,
 ) -> None:
-    """Render the V2 methodological view of PD, LGD and future EAD topics."""
+    """Render the methodological view of PD, recovery-based LGD and future EAD."""
     st.subheader("Parametres de risque")
     st.write(
         "Lecture methodologique des probabilites de defaut et de la LGD utilisees "
@@ -3373,6 +3520,234 @@ def render_risk_parameters(
         )
         st.plotly_chart(marginal_figure, width="stretch")
 
+    st.markdown("### LGD fondee sur les recouvrements")
+    st.write(
+        "La LGD est estimee a partir des garanties, des haircuts, des couts et "
+        "delais de recouvrement, puis actualisee au taux d'interet effectif. "
+        "Les expositions Stage 3 integrent des hypotheses de workout plus prudentes."
+    )
+    render_kpi_panel(
+        "Synthese LGD et recouvrements",
+        [
+            (
+                "LGD moyenne",
+                f"{float(lgd_summary['lgd_ead_weighted']):.1%}",
+                "Moyenne ponderee par l'EAD",
+            ),
+            (
+                "LGD garantie",
+                f"{float(lgd_summary['lgd_secured_ead_weighted']):.1%}",
+                "Expositions avec collateral",
+            ),
+            (
+                "LGD non garantie",
+                f"{float(lgd_summary['lgd_unsecured_ead_weighted']):.1%}",
+                "Expositions sans collateral",
+            ),
+            (
+                "LGD Stage 3",
+                f"{float(lgd_summary['lgd_stage3_ead_weighted']):.1%}",
+                "Hypotheses de workout",
+            ),
+        ],
+        [
+            (
+                "Recouvrements actualises",
+                format_compact_currency(
+                    float(lgd_summary["discounted_recovery_amount"])
+                ),
+                "Apres couts et actualisation",
+            ),
+            (
+                "Taux de recouvrement",
+                f"{float(lgd_summary['recovery_rate_ead_weighted']):.1%}",
+                "Recouvrements actualises / EAD",
+            ),
+            (
+                "Delai moyen",
+                f"{float(lgd_summary['average_recovery_delay_months']):.0f} mois",
+                "Horizon moyen de recouvrement",
+            ),
+        ],
+    )
+
+    with st.container(border=True):
+        st.markdown("#### Formule pedagogique de la LGD")
+        st.latex(
+            r"\mathrm{LGD}=1-\frac{\mathrm{PV}("
+            r"\mathrm{recouvrements\ garantis}+\mathrm{recouvrements\ non\ garantis}"
+            r"-\mathrm{couts})}{\mathrm{EAD}}"
+        )
+        st.caption(
+            "Les recouvrements sont plafonnes a l'EAD. Les haircuts, couts de "
+            "liquidation, delais de recovery et taux de recouvrement non garanti "
+            "sont des hypotheses synthetiques explicites."
+        )
+
+    lgd_left, lgd_right = st.columns(2)
+    with lgd_left:
+        if not lgd_by_stage.empty:
+            stage_figure = px.bar(
+                lgd_by_stage,
+                x="stage",
+                y="lgd",
+                color="stage",
+                text_auto=".1%",
+                title="LGD moyenne par stage",
+                labels={"stage": "Stage", "lgd": "LGD"},
+                color_discrete_map={
+                    "Stage 1": "#8298AA",
+                    "Stage 2": "#F1A986",
+                    "Stage 3": "#0B2B46",
+                },
+            )
+            stage_figure.update_layout(
+                height=390,
+                showlegend=False,
+                yaxis_tickformat=".0%",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(stage_figure, width="stretch")
+    with lgd_right:
+        if not lgd_by_collateral.empty:
+            collateral_figure = px.bar(
+                lgd_by_collateral.sort_values("lgd"),
+                x="lgd",
+                y="collateral_type",
+                orientation="h",
+                text_auto=".1%",
+                title="LGD par type de surete",
+                labels={
+                    "collateral_type": "Type de surete",
+                    "lgd": "LGD",
+                },
+                color_discrete_sequence=["#F1A986"],
+            )
+            collateral_figure.update_layout(
+                height=390,
+                xaxis_tickformat=".0%",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                margin=dict(l=10, r=10, t=45, b=20),
+            )
+            st.plotly_chart(collateral_figure, width="stretch")
+
+    product_left, product_right = st.columns(2)
+    with product_left:
+        if not lgd_by_product.empty:
+            product_figure = px.bar(
+                lgd_by_product.sort_values("lgd"),
+                x="product_type",
+                y="lgd",
+                text_auto=".1%",
+                title="LGD par produit",
+                labels={"product_type": "Produit", "lgd": "LGD"},
+                color_discrete_sequence=["#0B2B46"],
+            )
+            product_figure.update_layout(
+                height=390,
+                yaxis_tickformat=".0%",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(product_figure, width="stretch")
+    with product_right:
+        if not lgd_sensitivity.empty:
+            sensitivity_figure = px.bar(
+                lgd_sensitivity,
+                x="scenario",
+                y="lgd",
+                color="scenario",
+                text_auto=".1%",
+                title="Sensibilite de la LGD aux hypotheses de recovery",
+                labels={"scenario": "Scenario", "lgd": "LGD"},
+                color_discrete_map={
+                    "Baseline": "#8298AA",
+                    "Downside": "#0B2B46",
+                    "Upside": "#F1A986",
+                },
+            )
+            sensitivity_figure.update_layout(
+                height=390,
+                showlegend=False,
+                yaxis_tickformat=".0%",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(sensitivity_figure, width="stretch")
+
+    st.markdown("#### Cascade de recouvrement")
+    if not lgd_waterfall.empty:
+        waterfall_figure = go.Figure(
+            go.Waterfall(
+                x=lgd_waterfall["step"],
+                y=lgd_waterfall["amount"],
+                measure=lgd_waterfall["measure"],
+                connector={"line": {"color": "#8298AA"}},
+                increasing={"marker": {"color": "#F1A986"}},
+                decreasing={"marker": {"color": "#8298AA"}},
+                totals={"marker": {"color": "#0B2B46"}},
+                text=[
+                    format_compact_currency(float(value))
+                    for value in lgd_waterfall["amount"]
+                ],
+                textposition="outside",
+            )
+        )
+        waterfall_figure.update_layout(
+            height=430,
+            yaxis_title="Montant (EUR)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=10, r=10, t=25, b=20),
+        )
+        st.plotly_chart(waterfall_figure, width="stretch")
+
+    st.markdown("#### Expositions aux LGD les plus elevees")
+    top_lgd_columns = [
+        "loan_id",
+        "stage",
+        "product_type",
+        "ead",
+        "collateral_type",
+        "seniority",
+        "collateral_value",
+        "lgd_haircut_adjusted",
+        "lgd_recovery_delay_adjusted",
+        "discounted_recovery_amount",
+        "lgd",
+    ]
+    available_top_lgd_columns = [
+        column for column in top_lgd_columns if column in portfolio.columns
+    ]
+    top_lgd = portfolio.nlargest(10, "lgd")[available_top_lgd_columns].copy()
+    st.dataframe(
+        top_lgd,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "ead": st.column_config.NumberColumn("EAD", format="%.0f EUR"),
+            "collateral_value": st.column_config.NumberColumn(
+                "Valeur collateral",
+                format="%.0f EUR",
+            ),
+            "discounted_recovery_amount": st.column_config.NumberColumn(
+                "Recouvrement actualise",
+                format="%.0f EUR",
+            ),
+            "lgd_haircut_adjusted": st.column_config.NumberColumn(
+                "Haircut",
+                format="%.1%%",
+            ),
+            "lgd": st.column_config.NumberColumn("LGD", format="%.1%%"),
+            "lgd_recovery_delay_adjusted": st.column_config.NumberColumn(
+                "Delai (mois)",
+                format="%.0f",
+            ),
+        },
+    )
+
     st.markdown("#### Hypotheses et prochaines evolutions")
     assumption_columns = st.columns(3)
     assumptions = [
@@ -3382,9 +3757,9 @@ def render_risk_parameters(
             "Courbe cumulative et PD marginales derivees de la PD 12 mois.",
         ),
         (
-            "LGD actuelle",
-            "LGD statique par exposition",
-            "Pas encore de courbe de recovery ni de collateral dynamique.",
+            "LGD V2.1",
+            LGD_METHOD,
+            "Recouvrements garantis et non garantis, couts, delais et actualisation.",
         ),
         (
             "EAD - prochaine etape",

@@ -106,7 +106,7 @@ Le fichier suit le format :
 ECL_Staging_Explorer_RUN-YYYYMMDD-HHMMSS.xlsx
 ```
 
-L'export contient notamment les onglets `Disclaimer`, `Portfolio`, `Data Quality Issues`, `Staging Results`, `ECL Results`, `Risk Parameters`, `Lifetime PD Curve`, `Dashboard Summary`, `Audit Trail`, `Committee Summary`, `Business Consistency`, `Demo Storyline` et `Client Discussion Points`.
+L'export contient notamment les onglets `Disclaimer`, `Portfolio`, `Data Quality Issues`, `Staging Results`, `ECL Results`, `Risk Parameters`, `Lifetime PD Curve`, `LGD Parameters`, `LGD Sensitivity`, `Dashboard Summary`, `Audit Trail`, `Committee Summary`, `Business Consistency`, `Demo Storyline` et `Client Discussion Points`.
 
 ## Lire les parametres de risque
 
@@ -118,9 +118,22 @@ L'onglet `Parametres de risque` presente :
 - la LGD moyenne ponderee ;
 - la courbe de PD cumulative par stage ;
 - les PD par rating et les PD marginales annuelles.
+- la LGD moyenne ponderee, garantie, non garantie et Stage 3 ;
+- les recouvrements actualises et le delai moyen de recovery ;
+- la LGD par stage, produit et type de surete ;
+- la sensibilite LGD aux hypotheses `Baseline`, `Downside` et `Upside` ;
+- la cascade entre EAD, recouvrements et perte finale.
 
 Dans la V2, la PD lifetime est calculee avec une hypothese de taux de hasard annuel constant :
 
 `PD cumulative(t) = 1 - (1 - PD 12 mois)^t`
 
 Cette formule est pedagogique. Elle ne remplace pas des courbes de PD calibrees, des matrices de transition ou des modeles PIT/TTC utilises en production.
+
+La LGD V2.1 suit la formule pedagogique :
+
+`LGD = 1 - PV(recouvrements garantis + recouvrements non garantis - couts) / EAD`
+
+Les valeurs de suretes, rangs de seniorite, haircuts, couts et delais sont synthetiques et ne
+remplacent pas un modele LGD calibre sur des historiques de defaut et de
+recouvrement.

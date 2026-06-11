@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from modules.calculation_utils import safe_divide
+from modules.lgd_engine import LGD_SCENARIOS, calculate_lgd
 
 
 DEFAULT_SCENARIOS = {
@@ -69,6 +70,20 @@ def calculate_scenario_ecl(staged_portfolio: pd.DataFrame, scenario_name: str, p
         raise ValueError("Scenario multipliers must be finite.")
     if pd_multiplier < 0.0 or lgd_multiplier < 0.0:
         raise ValueError("Scenario multipliers cannot be negative.")
+
+    recovery_columns = {
+        "collateral_value",
+        "collateral_haircut",
+        "liquidation_cost_rate",
+        "unsecured_recovery_rate",
+        "recovery_delay_months",
+    }
+    if scenario_name in LGD_SCENARIOS and recovery_columns.issubset(result.columns):
+        result = calculate_lgd(
+            result,
+            scenario=scenario_name,
+            preserve_missing_lgd=True,
+        )
 
     pd_12m = pd.to_numeric(result["pd_12m"], errors="coerce")
     pd_lifetime = pd.to_numeric(result["pd_lifetime"], errors="coerce")

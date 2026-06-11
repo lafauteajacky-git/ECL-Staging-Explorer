@@ -28,7 +28,7 @@ Le demonstrateur aide a illustrer en rendez-vous client ou en atelier interne :
 
 La V1 ne propose aucun import de fichier externe. Tous les portefeuilles sont generes localement par le moteur de donnees synthetiques du demonstrateur.
 
-## Fonctionnalites principales V2
+## Fonctionnalites principales V2.1
 
 - Profils de portefeuille de demonstration : `Balanced`, `Low Risk`, `Deteriorated`, `Data Quality Issues`, `CRE Stress`.
 - Data quality checks et score qualite.
@@ -51,7 +51,14 @@ La V1 ne propose aucun import de fichier externe. Tous les portefeuilles sont ge
 - PD lifetime calculee a partir de la PD 12 mois et de la maturite residuelle.
 - Courbes de PD cumulative et PD marginales par horizon.
 - Analyse des PD par stage et par rating, avec moyennes ponderees par l'EAD.
-- Exports `Risk Parameters` et `Lifetime PD Curve`.
+- LGD fondee sur des flux de recouvrement synthetiques actualises.
+- Prise en compte du type et de la valeur des suretes, des haircuts, des couts
+  de liquidation, du rang de seniorite, des recouvrements non garantis et des
+  delais de recovery.
+- Hypotheses de workout plus prudentes pour le Stage 3.
+- Sensibilites LGD `Baseline`, `Downside` et `Upside`.
+- Exports `Risk Parameters`, `Lifetime PD Curve`, `LGD Parameters` et
+  `LGD Sensitivity`.
 
 ## Installation
 
@@ -145,6 +152,7 @@ modules/
   staging_engine.py
   ecl_calculator.py
   risk_parameters.py
+  lgd_engine.py
   scenario_engine.py
   overlay_engine.py
   reporting.py
@@ -175,8 +183,9 @@ La logique metier est dans `modules/`. Le package `ui/` centralise le theme, le 
 - Pas de donnees reelles.
 - Pas de modele macroeconometrique.
 - Pas de courbes PD lifetime calibrees.
-- Pas de cash-flows actualises.
-- Pas de collateraux avances.
+- Les flux de recouvrement LGD sont synthetiques et non calibres.
+- Pas de projection multi-periodes detaillee des cash-flows de recouvrement.
+- Pas de valorisation externe, reappraisal ou volatilite historique des suretes.
 - Pas de workflow d'approbation des overlays.
 - Pas de stockage persistant des runs.
 - Pas de comparaison historisee des runs.

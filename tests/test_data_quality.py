@@ -156,6 +156,23 @@ def test_raw_quality_catalogue_detects_standard_data_issues():
     assert results.loc["CONSISTENCY_PD_TERM", "exception_count"] >= 1
 
 
+def test_raw_quality_catalogue_detects_invalid_lgd_assumptions():
+    portfolio = generate_portfolio(n_exposures=12, seed=7)
+    portfolio.loc[0, "collateral_haircut"] = 1.20
+    portfolio.loc[1, "liquidation_cost_rate"] = -0.10
+    portfolio.loc[2, "unsecured_recovery_rate"] = 1.10
+    portfolio.loc[3, "collateral_value"] = -1.0
+    portfolio.loc[4, "recovery_delay_months"] = -6
+
+    results = run_raw_data_quality_tests(portfolio).set_index("test_id")
+
+    assert results.loc["VALID_COLLATERAL_HAIRCUT", "exception_count"] == 1
+    assert results.loc["VALID_LIQUIDATION_COST_RATE", "exception_count"] == 1
+    assert results.loc["VALID_UNSECURED_RECOVERY_RATE", "exception_count"] == 1
+    assert results.loc["VALID_COLLATERAL_VALUE", "exception_count"] == 1
+    assert results.loc["VALID_RECOVERY_DELAY", "exception_count"] == 1
+
+
 def test_raw_quality_catalogue_identifies_non_evaluable_timeliness():
     portfolio = generate_portfolio(n_exposures=10, seed=8)
     results = run_raw_data_quality_tests(portfolio).set_index("test_id")

@@ -16,6 +16,7 @@ def test_main_modules_import_cleanly():
     import modules.committee_summary  # noqa: F401
     import modules.data_quality  # noqa: F401
     import modules.ecl_calculator  # noqa: F401
+    import modules.lgd_engine  # noqa: F401
     import modules.overlay_engine  # noqa: F401
     import modules.reporting  # noqa: F401
     import modules.risk_parameters  # noqa: F401

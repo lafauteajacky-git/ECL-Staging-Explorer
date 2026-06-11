@@ -9,6 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from modules.lgd_engine import add_synthetic_lgd_inputs
 from modules.risk_parameters import add_lifetime_pd_metrics
 
 
@@ -101,6 +102,7 @@ def generate_portfolio(n_exposures: int = 1_000, seed: int = 42) -> pd.DataFrame
     )
     portfolio["initial_stage"] = "Stage 1"
     portfolio = add_lifetime_pd_metrics(portfolio)
+    portfolio = add_synthetic_lgd_inputs(portfolio, seed=seed + 5_000)
     return _add_staging_transition_context(portfolio, rng)
 
 
@@ -135,6 +137,7 @@ def generate_demo_portfolio(
         portfolio = _apply_cre_stress_profile(portfolio, rng)
 
     portfolio = add_lifetime_pd_metrics(portfolio)
+    portfolio = add_synthetic_lgd_inputs(portfolio, seed=seed + 15_000)
     if data_quality_level is not None:
         portfolio = apply_data_quality_level(portfolio, data_quality_level, seed + 20_000)
     return _add_staging_transition_context(portfolio, rng)

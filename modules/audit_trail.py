@@ -9,7 +9,7 @@ import pandas as pd
 from modules.demo_config import DEMO_DISCLAIMER_FR
 
 
-APP_VERSION = "V2.0"
+APP_VERSION = "V2.1"
 
 
 def generate_run_id(run_datetime: datetime | None = None) -> str:
@@ -41,6 +41,8 @@ def build_audit_trail(
     staging_transition_summary: pd.DataFrame | None = None,
     risk_parameter_summary: dict | None = None,
     lifetime_pd_curve: pd.DataFrame | None = None,
+    lgd_summary: dict | None = None,
+    lgd_sensitivity: pd.DataFrame | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Build a detailed, Excel-friendly audit trail."""
     warnings = [
@@ -48,7 +50,8 @@ def build_audit_trail(
         "Donnees synthetiques uniquement.",
         "Scenarios macro appliques via multiplicateurs simples PD/LGD.",
         "Overlays appliques en pourcentage de l'ECL avant overlay.",
-        "Pas de discounting des cash-flows dans le MVP.",
+        "LGD calculee sur des recouvrements synthetiques actualises au taux d'interet effectif.",
+        "Valeurs de suretes, haircuts, couts et delais de recouvrement non calibres sur des donnees bancaires reelles.",
         "PD lifetime calculee par taux de hasard annuel constant derive de la PD 12 mois.",
         "Periodes de cure pedagogiques: 3 mois Stage 3 vers Stage 2, 6 mois Stage 2 vers Stage 1 et 12 mois pour un retour exceptionnel Stage 3 vers Stage 1.",
     ]
@@ -116,4 +119,13 @@ def build_audit_trail(
         )
     if lifetime_pd_curve is not None:
         audit_trail["lifetime_pd_curve"] = lifetime_pd_curve.copy()
+    if lgd_summary is not None:
+        audit_trail["lgd_summary"] = pd.DataFrame(
+            [
+                {"metric": metric, "value": value}
+                for metric, value in lgd_summary.items()
+            ]
+        )
+    if lgd_sensitivity is not None:
+        audit_trail["lgd_sensitivity"] = lgd_sensitivity.copy()
     return audit_trail

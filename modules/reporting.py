@@ -335,6 +335,8 @@ def build_excel_export_bytes(
     client_discussion_points: pd.DataFrame | None = None,
     risk_parameters: pd.DataFrame | None = None,
     lifetime_pd_curve: pd.DataFrame | None = None,
+    lgd_parameters: pd.DataFrame | None = None,
+    lgd_sensitivity: pd.DataFrame | None = None,
 ) -> bytes:
     """Build the V0.3 Excel export in memory."""
     buffer = BytesIO()
@@ -357,6 +359,8 @@ def build_excel_export_bytes(
         client_discussion_points,
         risk_parameters,
         lifetime_pd_curve,
+        lgd_parameters,
+        lgd_sensitivity,
     )
     return buffer.getvalue()
 
@@ -380,6 +384,8 @@ def export_results_to_excel(
     file_name: str = "ecl_staging_explorer_results.xlsx",
     risk_parameters: pd.DataFrame | None = None,
     lifetime_pd_curve: pd.DataFrame | None = None,
+    lgd_parameters: pd.DataFrame | None = None,
+    lgd_sensitivity: pd.DataFrame | None = None,
 ) -> Path:
     """Export MVP results to the outputs directory and return the file path."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -404,6 +410,8 @@ def export_results_to_excel(
         client_discussion_points,
         risk_parameters,
         lifetime_pd_curve,
+        lgd_parameters,
+        lgd_sensitivity,
     )
 
     return output_path
@@ -428,6 +436,8 @@ def _write_excel_export(
     client_discussion_points: pd.DataFrame | None = None,
     risk_parameters: pd.DataFrame | None = None,
     lifetime_pd_curve: pd.DataFrame | None = None,
+    lgd_parameters: pd.DataFrame | None = None,
+    lgd_sensitivity: pd.DataFrame | None = None,
 ) -> None:
     with pd.ExcelWriter(target, engine="openpyxl") as writer:
         pd.DataFrame({"disclaimer": [DEMO_DISCLAIMER_FR]}).to_excel(writer, sheet_name="Disclaimer", index=False)
@@ -450,6 +460,10 @@ def _write_excel_export(
             risk_parameters.to_excel(writer, sheet_name="Risk Parameters", index=False)
         if lifetime_pd_curve is not None:
             lifetime_pd_curve.to_excel(writer, sheet_name="Lifetime PD Curve", index=False)
+        if lgd_parameters is not None:
+            lgd_parameters.to_excel(writer, sheet_name="LGD Parameters", index=False)
+        if lgd_sensitivity is not None:
+            lgd_sensitivity.to_excel(writer, sheet_name="LGD Sensitivity", index=False)
         if demo_storyline is not None:
             demo_storyline.to_excel(writer, sheet_name="Demo Storyline", index=False)
         if client_discussion_points is not None:
