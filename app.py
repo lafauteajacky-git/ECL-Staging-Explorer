@@ -3657,23 +3657,8 @@ def render_contact_block() -> None:
     )
 
 
-def render_macro_scenarios(
-    scenario_parameters: pd.DataFrame,
-    scenario_weights_valid: bool,
-    scenario_summary: pd.DataFrame,
-    scenario_metrics: dict[str, float],
-    downside_by_stage: pd.DataFrame,
-) -> None:
-    """Render the macro scenarios tab."""
-    st.subheader("Macro Scenarios")
-    st.write("Les ponderations et multiplicateurs sont modifiables dans la barre laterale.")
-    total_weight = scenario_parameters["weight"].sum()
-    if scenario_weights_valid:
-        st.success(f"Somme des ponderations : {total_weight:.0%}")
-    else:
-        st.error(f"Somme des ponderations : {total_weight:.0%}. La somme doit etre egale a 100%.")
-
-    st.markdown("#### Hypotheses appliquees")
+def render_scenario_parameter_cards(scenario_parameters: pd.DataFrame) -> None:
+    """Render macro scenario assumptions using the shared Auria card style."""
     scenario_palette = {
         "Baseline": ("#0B2B46", "Scenario central"),
         "Downside": ("#F1A986", "Scenario de stress"),
@@ -3715,6 +3700,26 @@ def render_macro_scenarios(
                 """,
                 unsafe_allow_html=True,
             )
+
+
+def render_macro_scenarios(
+    scenario_parameters: pd.DataFrame,
+    scenario_weights_valid: bool,
+    scenario_summary: pd.DataFrame,
+    scenario_metrics: dict[str, float],
+    downside_by_stage: pd.DataFrame,
+) -> None:
+    """Render the macro scenarios tab."""
+    st.subheader("Macro Scenarios")
+    st.write("Les ponderations et multiplicateurs sont modifiables dans la barre laterale.")
+    total_weight = scenario_parameters["weight"].sum()
+    if scenario_weights_valid:
+        st.success(f"Somme des ponderations : {total_weight:.0%}")
+    else:
+        st.error(f"Somme des ponderations : {total_weight:.0%}. La somme doit etre egale a 100%.")
+
+    st.markdown("#### Hypotheses appliquees")
+    render_scenario_parameter_cards(scenario_parameters)
 
     with st.expander("Voir le detail des parametres"):
         display_params = scenario_parameters.copy()
@@ -3982,70 +3987,191 @@ def render_audit_trail(audit_trail: dict[str, pd.DataFrame]) -> None:
     st.subheader("Audit Trail")
     st.write(
         "Vue de tracabilite du run : hypotheses appliquees, parametres, alertes et principaux resultats. "
-        "Les tableaux detailles restent disponibles pour audit ou export."
+        "Les donnees detaillees restent disponibles dans l'export Excel."
     )
 
     run_summary = audit_trail.get("run_summary", pd.DataFrame())
     run_values = _audit_section_to_dict(run_summary, "field", "value")
-    summary_cols = st.columns(4)
-    with summary_cols[0]:
-        render_kpi_card("Run ID", str(run_values.get("run_id", "N/A")), str(run_values.get("app_version", "")))
-    with summary_cols[1]:
-        render_kpi_card("Expositions", str(run_values.get("exposure_count", "N/A")), "Traitees dans le run")
-    with summary_cols[2]:
-        render_kpi_card("EAD totale", format_compact_currency(float(run_values.get("total_ead", 0) or 0)), "Portefeuille")
-    with summary_cols[3]:
-        render_kpi_card("ECL finale", format_compact_currency(float(run_values.get("final_ecl_after_overlay", 0) or 0)), "Apres overlays")
+    render_light_kpi_panel(
+        "Identification et resultats du run",
+        [
+            (
+                "Run ID",
+                str(run_values.get("run_id", "N/A")),
+                str(run_values.get("app_version", "")),
+            ),
+            (
+                "Expositions",
+                str(run_values.get("exposure_count", "N/A")),
+                "Traitees dans le run",
+            ),
+            (
+                "EAD totale",
+                format_compact_currency(float(run_values.get("total_ead", 0) or 0)),
+                "Portefeuille synthetique",
+            ),
+            (
+                "ECL finale",
+                format_compact_currency(float(run_values.get("final_ecl_after_overlay", 0) or 0)),
+                "Apres scenarios et overlays",
+            ),
+        ],
+    )
 
     st.info(str(run_values.get("demo_disclaimer", DEMO_DISCLAIMER_FR)))
 
     st.markdown("#### Points de controle prioritaires")
-    control_cols = st.columns(4)
-    with control_cols[0]:
-        render_kpi_card("Anomalies DQ", str(run_values.get("data_quality_issue_count", 0)), "Data quality")
-    with control_cols[1]:
-        render_kpi_card("Cas a revoir", str(run_values.get("review_required_count", 0)), "Review required")
-    with control_cols[2]:
-        render_kpi_card("Alertes metier", str(run_values.get("business_alert_count", 0)), "Coherence")
-    with control_cols[3]:
-        render_kpi_card("Alertes critiques", str(run_values.get("business_critical_alert_count", 0)), "A prioriser")
+    render_kpi_panel(
+        "Lecture synthetique des controles",
+        [
+            (
+                "Anomalies data quality",
+                str(run_values.get("data_quality_issue_count", 0)),
+                "Exceptions detectees",
+            ),
+            (
+                "Cas a revoir",
+                str(run_values.get("review_required_count", 0)),
+                "Expositions avec review required",
+            ),
+            (
+                "Alertes metier",
+                str(run_values.get("business_alert_count", 0)),
+                "Controles de coherence",
+            ),
+            (
+                "Alertes critiques",
+                str(run_values.get("business_critical_alert_count", 0)),
+                "Points a prioriser",
+            ),
+        ],
+    )
 
-    st.markdown("#### Synthese des hypotheses")
-    hyp_left, hyp_right = st.columns(2)
-    with hyp_left:
-        _render_audit_bullets("Regles de staging appliquees", audit_trail.get("staging_rules"), ["rule", "threshold", "description"])
-        _render_audit_bullets("Hypotheses ECL", audit_trail.get("ecl_assumptions"), ["stage", "pd_used", "formula"])
-    with hyp_right:
-        _render_audit_bullets("Scenarios macro", audit_trail.get("scenario_parameters"), ["scenario", "weight", "pd_multiplier", "lgd_multiplier"])
-        _render_audit_bullets("Overlays actifs", audit_trail.get("overlay_parameters"), ["name", "overlay_type", "rate", "justification"])
+    st.markdown("#### Arbre de decision du staging")
+    st.caption("Les criteres de defaut priment sur les indicateurs SICR et les regles de retour vers un stage inferieur.")
+    render_staging_decision_tree()
+
+    st.markdown("#### Formules de calcul ECL")
+    render_ecl_formula_view()
+
+    scenario_parameters = audit_trail.get("scenario_parameters", pd.DataFrame())
+    scenario_results = audit_trail.get("scenario_results", pd.DataFrame())
+    st.markdown("#### Scenarios macroeconomiques")
+    if scenario_parameters is not None and not scenario_parameters.empty:
+        render_scenario_parameter_cards(scenario_parameters)
+    else:
+        st.caption("Parametres de scenarios non disponibles.")
+    if (
+        scenario_results is not None
+        and not scenario_results.empty
+        and {"scenario", "ecl"}.issubset(scenario_results.columns)
+    ):
+        scenario_figure = px.bar(
+            scenario_results,
+            x="scenario",
+            y="ecl",
+            color="scenario",
+            text_auto=".3s",
+            title="ECL par scenario",
+            color_discrete_map={
+                "Baseline": "#0B2B46",
+                "Downside": "#F1A986",
+                "Upside": "#14664A",
+            },
+        )
+        scenario_figure.update_layout(
+            height=340,
+            showlegend=False,
+            xaxis_title="",
+            yaxis_title="ECL",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(scenario_figure, width="stretch")
+
+    st.markdown("#### Overlays manageriaux")
+    overlay_parameters = audit_trail.get("overlay_parameters", pd.DataFrame())
+    overlay_summary = audit_trail.get("overlay_summary", pd.DataFrame())
+    if overlay_parameters is not None and not overlay_parameters.empty:
+        render_overlay_rule_cards(overlay_parameters)
+    else:
+        st.caption("Aucun overlay actif.")
+    if (
+        overlay_summary is not None
+        and not overlay_summary.empty
+        and {"overlay_name", "overlay_amount"}.issubset(overlay_summary.columns)
+    ):
+        active_overlays = overlay_summary.loc[overlay_summary["overlay_amount"] > 0].copy()
+        if not active_overlays.empty:
+            overlay_figure = px.bar(
+                active_overlays.sort_values("overlay_amount"),
+                x="overlay_amount",
+                y="overlay_name",
+                orientation="h",
+                text_auto=".3s",
+                title="Impact monetaire des overlays",
+                color_discrete_sequence=["#F1A986"],
+            )
+            overlay_figure.update_layout(
+                height=max(310, 55 * len(active_overlays)),
+                xaxis_title="Montant d'overlay",
+                yaxis_title="",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(overlay_figure, width="stretch")
 
     st.markdown("#### Transitions de stage et periodes de cure")
     transition_summary = audit_trail.get("staging_transition_summary", pd.DataFrame())
     if transition_summary is not None and not transition_summary.empty:
-        transition_chart = px.bar(
-            transition_summary,
-            x="transition_rule",
-            y="exposure_count",
-            color="stage",
-            text="exposure_count",
-            title="Transitions observees dans le run",
-            color_discrete_map={
-                "Stage 1": "#8298AA",
-                "Stage 2": "#F1A986",
-                "Stage 3": "#0B2B46",
-            },
-        )
-        transition_chart.update_layout(
-            height=410,
-            xaxis_title="",
-            yaxis_title="Nombre d'expositions",
-            legend_title_text="Stage final",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-        )
-        st.plotly_chart(transition_chart, width="stretch")
-        with st.expander("Consulter la synthese detaillee des transitions", expanded=False):
-            st.dataframe(transition_summary, width="stretch", hide_index=True)
+        transition_columns = st.columns(3)
+        stage_colors = {
+            "Stage 1": "#8298AA",
+            "Stage 2": "#F1A986",
+            "Stage 3": "#0B2B46",
+        }
+        for column, final_stage in zip(
+            transition_columns,
+            ["Stage 1", "Stage 2", "Stage 3"],
+            strict=False,
+        ):
+            stage_transitions = transition_summary.loc[
+                transition_summary["stage"].eq(final_stage)
+            ].copy()
+            with column:
+                if stage_transitions.empty:
+                    st.info(f"Aucune transition vers {final_stage}.")
+                    continue
+                transition_chart = px.bar(
+                    stage_transitions,
+                    x="exposure_count",
+                    y="transition_rule",
+                    color="probation_status",
+                    orientation="h",
+                    text="exposure_count",
+                    custom_data=["previous_stage", "ead", "probation_status"],
+                    title=f"Stage final : {final_stage}",
+                )
+                transition_chart.update_traces(
+                    hovertemplate=(
+                        "<b>%{y}</b><br>Expositions : %{x}<br>"
+                        "Stage precedent : %{customdata[0]}<br>"
+                        "EAD : %{customdata[1]:,.0f} EUR<br>"
+                        "Cure / probation : %{customdata[2]}<extra></extra>"
+                    ),
+                    marker_line_color=stage_colors[final_stage],
+                    marker_line_width=1,
+                )
+                transition_chart.update_layout(
+                    height=430,
+                    xaxis_title="Nombre d'expositions",
+                    yaxis_title="",
+                    legend_title_text="Cure / probation",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    margin=dict(l=10, r=10, t=55, b=25),
+                )
+                st.plotly_chart(transition_chart, width="stretch")
     else:
         st.caption("Synthese des transitions non disponible.")
 
@@ -4055,35 +4181,48 @@ def render_audit_trail(audit_trail: dict[str, pd.DataFrame]) -> None:
         critical_alerts = audit_trail.get("critical_business_alerts", pd.DataFrame())
         if critical_alerts is not None and not critical_alerts.empty:
             st.warning("Alertes critiques de coherence metier")
-            st.dataframe(critical_alerts, width="stretch", hide_index=True)
+            for _, alert in critical_alerts.head(5).iterrows():
+                render_governance_card(
+                    f"Exposition {alert.get('loan_id', '')}",
+                    str(alert.get("rule", "Alerte critique")),
+                    (
+                        f"Recommandation : {alert.get('recommendation', 'Revue requise.')} "
+                        f"Impact potentiel : {alert.get('potential_impact', 'A evaluer.')}"
+                    ),
+                )
+            if len(critical_alerts) > 5:
+                st.caption(
+                    f"{len(critical_alerts) - 5} alerte(s) critique(s) supplementaire(s) "
+                    "sont disponibles dans l'export."
+                )
         else:
             st.success("Aucune alerte critique de coherence metier dans ce run.")
     with alert_right:
         top_contributors = audit_trail.get("top_contributors", pd.DataFrame())
         if top_contributors is not None and not top_contributors.empty:
             display_top = top_contributors.head(5).copy()
-            for column in ["ead", "ecl"]:
-                if column in display_top:
-                    display_top[column] = display_top[column].map(format_currency)
-            st.write("Top contributeurs ECL")
-            st.dataframe(display_top, width="stretch", hide_index=True)
-
-    st.markdown("#### Details auditables")
-    priority_sections = {
-        "run_summary",
-        "staging_rules",
-        "ecl_assumptions",
-        "scenario_parameters",
-        "overlay_parameters",
-        "staging_transition_summary",
-        "critical_business_alerts",
-        "top_contributors",
-    }
-    for title, table in audit_trail.items():
-        if title in priority_sections:
-            continue
-        with st.expander(title.replace("_", " ").title(), expanded=False):
-            st.dataframe(table, width="stretch", hide_index=True)
+            contributor_label = (
+                "loan_id"
+                if "loan_id" in display_top.columns
+                else display_top.columns[0]
+            )
+            contributor_figure = px.bar(
+                display_top.sort_values("ecl"),
+                x="ecl",
+                y=contributor_label,
+                orientation="h",
+                text_auto=".3s",
+                title="Top 5 contributeurs ECL",
+                color_discrete_sequence=["#0B2B46"],
+            )
+            contributor_figure.update_layout(
+                height=350,
+                xaxis_title="ECL",
+                yaxis_title="",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(contributor_figure, width="stretch")
 
 
 def _audit_section_to_dict(table: pd.DataFrame, key_col: str, value_col: str) -> dict:
