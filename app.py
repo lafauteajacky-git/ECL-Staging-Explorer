@@ -2190,7 +2190,6 @@ def render_ecl_calculation_dashboard(ecl_portfolio: pd.DataFrame) -> None:
             st.info("Aucune ECL positive sur le perimetre selectionne.")
 
     st.markdown("#### ECL par motif de staging")
-    reason_cols = st.columns(2)
 
     def render_stage_reason_chart(stage_name: str, color: str) -> None:
         stage_data = filtered.loc[filtered["stage"].eq(stage_name)].copy()
@@ -2228,19 +2227,14 @@ def render_ecl_calculation_dashboard(ecl_portfolio: pd.DataFrame) -> None:
         )
         st.plotly_chart(reason_figure, width="stretch")
 
-    with reason_cols[0]:
-        render_stage_reason_chart("Stage 2", "#F1A986")
-    with reason_cols[1]:
-        render_stage_reason_chart("Stage 3", "#0B2B46")
-
     probation_columns = [
         column
         for column in [
+            "returned_to_stage_1_flag",
             "probation_flag",
             "probation_status",
             "probation_period_flag",
             "cure_flag",
-            "returned_to_stage_1_flag",
         ]
         if column in filtered.columns
     ]
@@ -2248,10 +2242,24 @@ def render_ecl_calculation_dashboard(ecl_portfolio: pd.DataFrame) -> None:
         probation_column = probation_columns[0]
         stage_1 = filtered.loc[filtered["stage"].eq("Stage 1")].copy()
         if not stage_1.empty:
-            probation_values = stage_1[probation_column]
-            probation_mask = probation_values.fillna(False).astype(str).str.lower().isin(
-                ["true", "1", "yes", "oui", "active", "probation", "cured", "cure"]
-            )
+            if probation_column == "returned_to_stage_1_flag":
+                probation_mask = stage_1[probation_column].fillna(False).astype(bool)
+            else:
+                probation_values = stage_1[probation_column]
+                probation_mask = probation_values.fillna(False).astype(str).str.lower().isin(
+                    [
+                        "true",
+                        "1",
+                        "yes",
+                        "oui",
+                        "active",
+                        "probation",
+                        "cured",
+                        "cure",
+                        "stage 2 probation completed",
+                        "exceptional full cure completed",
+                    ]
+                )
             stage_1["stage_1_origin"] = np.where(
                 probation_mask,
                 "Retour en Stage 1 apres probation",
@@ -2261,23 +2269,56 @@ def render_ecl_calculation_dashboard(ecl_portfolio: pd.DataFrame) -> None:
                 stage_1.groupby("stage_1_origin", as_index=False)
                 .agg(ead=("ead", "sum"), ecl=("ecl", "sum"), exposure_count=("loan_id", "count"))
             )
-            probation_figure = px.bar(
-                probation_summary,
-                x="stage_1_origin",
-                y=["ead", "ecl"],
-                barmode="group",
-                title=f"Stage 1 - distinction selon {probation_column}",
-                color_discrete_map={"ead": "#8298AA", "ecl": "#F1A986"},
+            probation_figure = go.Figure()
+            probation_figure.add_trace(
+                go.Bar(
+                    x=probation_summary["stage_1_origin"],
+                    y=probation_summary["ead"],
+                    name="EAD",
+                    marker_color="#8298AA",
+                    text=[format_compact_currency(value) for value in probation_summary["ead"]],
+                    textposition="outside",
+                    hovertemplate="<b>%{x}</b><br>EAD : %{y:,.0f} EUR<extra></extra>",
+                )
+            )
+            probation_figure.add_trace(
+                go.Bar(
+                    x=probation_summary["stage_1_origin"],
+                    y=probation_summary["ecl"],
+                    name="ECL",
+                    marker_color="#F1A986",
+                    text=[format_compact_currency(value) for value in probation_summary["ecl"]],
+                    textposition="outside",
+                    hovertemplate="<b>%{x}</b><br>ECL : %{y:,.0f} EUR<extra></extra>",
+                )
             )
             probation_figure.update_layout(
-                height=390,
+                barmode="group",
+                title="Stage 1 - expositions saines et retours apres probation",
+                height=420,
                 xaxis_title="",
                 yaxis_title="Montant (EUR)",
-                legend_title_text="",
+                legend=dict(
+                    title="",
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="left",
+                    x=0,
+                    font=dict(color="#0B2B46"),
+                ),
+                showlegend=True,
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
+                margin=dict(l=20, r=20, t=90, b=45),
             )
             st.plotly_chart(probation_figure, width="stretch")
+
+    reason_cols = st.columns(2)
+    with reason_cols[0]:
+        render_stage_reason_chart("Stage 2", "#F1A986")
+    with reason_cols[1]:
+        render_stage_reason_chart("Stage 3", "#0B2B46")
 
     with st.expander("Consulter le detail des calculs ECL", expanded=False):
         st.dataframe(
