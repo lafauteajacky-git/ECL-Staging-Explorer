@@ -375,6 +375,71 @@ def apply_auria_theme() -> None:
             border-top: 1px solid rgba(255, 255, 255, 0.16);
         }
 
+        .overlay-rule-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            margin: 14px 0 26px;
+        }
+
+        .overlay-rule-card {
+            min-width: 0;
+            padding: 20px 22px;
+            border: 1px solid rgba(11, 43, 70, 0.14);
+            border-left: 5px solid var(--auria-peach);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.88);
+            box-shadow: 0 16px 38px rgba(11, 43, 70, 0.09);
+        }
+
+        .overlay-rule-heading {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 15px;
+        }
+
+        .overlay-rule-name {
+            color: var(--auria-navy);
+            font-size: 1rem;
+            font-weight: 900;
+            line-height: 1.3;
+        }
+
+        .overlay-rule-rate {
+            flex: 0 0 auto;
+            padding: 5px 10px;
+            border-radius: 999px;
+            color: #ffffff;
+            background: var(--auria-navy);
+            font-size: 0.82rem;
+            font-weight: 900;
+        }
+
+        .overlay-rule-label {
+            margin-bottom: 4px;
+            color: var(--auria-peach);
+            font-size: 0.67rem;
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .overlay-rule-scope {
+            margin-bottom: 13px;
+            color: var(--auria-navy);
+            font-size: 0.88rem;
+            font-weight: 800;
+            line-height: 1.45;
+        }
+
+        .overlay-rule-comment {
+            color: var(--auria-grey);
+            font-size: 0.82rem;
+            line-height: 1.55;
+        }
+
         .migration-kpi-item {
             min-width: 0;
             min-height: 92px;
@@ -451,6 +516,10 @@ def apply_auria_theme() -> None:
             .kpi-grid-two {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
                 row-gap: 20px;
+            }
+
+            .overlay-rule-grid {
+                grid-template-columns: minmax(0, 1fr);
             }
         }
 
@@ -3444,6 +3513,93 @@ def render_macro_scenarios(
     st.dataframe(scenario_summary, width="stretch")
 
 
+def render_overlay_rule_cards(overlay_parameters: pd.DataFrame) -> None:
+    """Render active overlay rules as French Auria-style governance cards."""
+    french_content = {
+        "Commercial Real Estate Stress": {
+            "scope": "Expositions du secteur immobilier commercial.",
+            "comment": (
+                "Ajustement de prudence appliqué aux actifs immobiliers commerciaux "
+                "dans un contexte d'incertitude sur les valorisations."
+            ),
+        },
+        "SME Energy Sensitivity": {
+            "scope": "Financements PME appartenant au secteur de l'énergie.",
+            "comment": (
+                "Ajustement expert reflétant la sensibilité des PME du secteur énergétique "
+                "à la volatilité des coûts et des conditions de marché."
+            ),
+        },
+        "Data Quality Uncertainty": {
+            "scope": "Expositions présentant une anomalie critique de qualité des données.",
+            "comment": (
+                "Marge de prudence destinée à couvrir l'incertitude liée à des données "
+                "manquantes ou invalides susceptibles d'affecter la fiabilité de l'ECL."
+            ),
+        },
+        "Stage 2 Prudence Overlay": {
+            "scope": "Ensemble des expositions classées en Stage 2.",
+            "comment": (
+                "Prudence complémentaire sur les contrats présentant une augmentation "
+                "significative du risque de crédit."
+            ),
+        },
+        "Stage 3 Recovery Risk": {
+            "scope": "Ensemble des expositions classées en Stage 3.",
+            "comment": (
+                "Ajustement couvrant l'incertitude sur les perspectives de recouvrement "
+                "des expositions en défaut."
+            ),
+        },
+    }
+    fallback_scopes = {
+        "sector": "Périmètre sectoriel défini par la règle.",
+        "product_sector": "Périmètre combinant produit et secteur.",
+        "country": "Périmètre géographique défini par la règle.",
+        "data_quality": "Expositions présentant une incertitude de qualité des données.",
+        "expert_global": "Ensemble du portefeuille.",
+        "stage": "Expositions appartenant au stage ciblé.",
+    }
+
+    cards = []
+    for _, overlay in overlay_parameters.iterrows():
+        overlay_name = str(overlay.get("name", "Overlay"))
+        translated = french_content.get(overlay_name, {})
+        scope = translated.get(
+            "scope",
+            fallback_scopes.get(
+                str(overlay.get("overlay_type", "")),
+                str(overlay.get("scope", "Périmètre à préciser.")),
+            ),
+        )
+        comment = translated.get(
+            "comment",
+            str(overlay.get("justification", "Justification métier à documenter.")),
+        )
+        cards.append(
+            f"""
+            <article class="overlay-rule-card">
+                <div class="overlay-rule-heading">
+                    <div class="overlay-rule-name">{overlay_name}</div>
+                    <div class="overlay-rule-rate">{float(overlay.get("rate", 0)):.0%}</div>
+                </div>
+                <div class="overlay-rule-label">Périmètre concerné</div>
+                <div class="overlay-rule-scope">{scope}</div>
+                <div class="overlay-rule-label">Commentaire métier</div>
+                <div class="overlay-rule-comment">{comment}</div>
+            </article>
+            """
+        )
+
+    if not cards:
+        st.info("Aucun overlay n'est activé pour ce run.")
+        return
+    st.markdown(
+        f'<section class="overlay-rule-grid">{"".join(cards)}</section>',
+        unsafe_allow_html=True,
+    )
+
+
 def render_management_overlays(
     overlay_parameters: pd.DataFrame,
     overlay_summary: pd.DataFrame,
@@ -3454,8 +3610,8 @@ def render_management_overlays(
     """Render management overlay controls and results."""
     st.subheader("Management Overlays")
     st.write("Les overlays predefinis sont activables dans la barre laterale. Les impacts sont calcules sur l'ECL avant overlay.")
-    st.write("Regles des overlays")
-    st.dataframe(overlay_parameters, width="stretch")
+    st.markdown("#### Règles des overlays actifs")
+    render_overlay_rule_cards(overlay_parameters)
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("ECL avant overlay", format_currency(float(overlay_metrics["ecl_before_overlay"])))
