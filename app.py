@@ -54,7 +54,12 @@ from modules.reporting import (
     build_top_ecl_contributors,
     export_results_to_excel,
 )
-from modules.sample_data import DEMO_PORTFOLIO_PROFILES, generate_demo_portfolio
+from modules.sample_data import (
+    DATA_QUALITY_LEVEL_DESCRIPTIONS,
+    DATA_QUALITY_LEVELS,
+    DEMO_PORTFOLIO_PROFILES,
+    generate_demo_portfolio,
+)
 from modules.scenario_engine import (
     DEFAULT_SCENARIOS,
     build_scenario_insights,
@@ -658,9 +663,19 @@ def render_brand_header(run_id: str | None = None) -> None:
 
 
 @st.cache_data
-def load_synthetic_portfolio(n_exposures: int, seed: int, demo_profile: str) -> pd.DataFrame:
+def load_synthetic_portfolio(
+    n_exposures: int,
+    seed: int,
+    demo_profile: str,
+    data_quality_level: str,
+) -> pd.DataFrame:
     """Cache synthetic generation for a smoother demo experience."""
-    return generate_demo_portfolio(profile=demo_profile, n_exposures=n_exposures, seed=seed)
+    return generate_demo_portfolio(
+        profile=demo_profile,
+        n_exposures=n_exposures,
+        seed=seed,
+        data_quality_level=data_quality_level,
+    )
 
 
 def read_uploaded_file(uploaded_file) -> pd.DataFrame:
@@ -756,6 +771,14 @@ def render_demo_parameters():
             )
             seed = st.number_input("Seed aleatoire", min_value=1, value=42, step=1, key="demo_seed")
 
+        data_quality_level = st.select_slider(
+            "Niveau de qualite des donnees",
+            options=DATA_QUALITY_LEVELS,
+            value=DATA_QUALITY_LEVELS[0],
+            key="demo_data_quality_level",
+        )
+        st.caption(DATA_QUALITY_LEVEL_DESCRIPTIONS[data_quality_level])
+
         uploaded_file = None
         if source == "Charger un fichier":
             uploaded_file = st.file_uploader(
@@ -774,6 +797,7 @@ def render_demo_parameters():
                 generated_summary.get("profile") != demo_profile
                 or int(generated_summary.get("requested_exposures", 0)) != int(n_exposures)
                 or int(generated_summary.get("seed", 0)) != int(seed)
+                or generated_summary.get("data_quality_level") != data_quality_level
             )
             if pending_changes:
                 st.warning(
@@ -792,13 +816,24 @@ def render_demo_parameters():
             key="demo_enabled_overlays",
         )
 
-    return source, demo_profile, n_exposures, seed, generate_clicked, uploaded_file, scenario_config, enabled_overlays
+    return (
+        source,
+        demo_profile,
+        data_quality_level,
+        n_exposures,
+        seed,
+        generate_clicked,
+        uploaded_file,
+        scenario_config,
+        enabled_overlays,
+    )
 
 
 def load_demo_parameters_from_state():
     """Load persisted demo settings when controls are not rendered."""
     source = st.session_state.get("demo_source", "Generer un portefeuille synthetique")
     demo_profile = st.session_state.get("demo_profile_control", "Balanced Portfolio")
+    data_quality_level = st.session_state.get("demo_data_quality_level", DATA_QUALITY_LEVELS[0])
     n_exposures = int(st.session_state.get("demo_exposure_count", 1_000))
     seed = int(st.session_state.get("demo_seed", 42))
     uploaded_file = st.session_state.get("demo_uploaded_file")
@@ -817,7 +852,16 @@ def load_demo_parameters_from_state():
         "demo_enabled_overlays",
         [overlay["name"] for overlay in PREDEFINED_OVERLAYS],
     )
-    return source, demo_profile, n_exposures, seed, uploaded_file, scenario_config, enabled_overlays
+    return (
+        source,
+        demo_profile,
+        data_quality_level,
+        n_exposures,
+        seed,
+        uploaded_file,
+        scenario_config,
+        enabled_overlays,
+    )
 
 
 def main() -> None:
@@ -860,11 +904,11 @@ def main() -> None:
 
     if selected_page == "Accueil":
         render_home_introduction()
-        source, demo_profile, n_exposures, seed, generate_clicked, uploaded_file, scenario_config, enabled_overlays = (
+        source, demo_profile, data_quality_level, n_exposures, seed, generate_clicked, uploaded_file, scenario_config, enabled_overlays = (
             render_demo_parameters()
         )
     else:
-        source, demo_profile, n_exposures, seed, uploaded_file, scenario_config, enabled_overlays = (
+        source, demo_profile, data_quality_level, n_exposures, seed, uploaded_file, scenario_config, enabled_overlays = (
             load_demo_parameters_from_state()
         )
         generate_clicked = False
@@ -885,13 +929,16 @@ def main() -> None:
                 n_exposures=n_exposures,
                 seed=seed,
                 demo_profile=demo_profile,
+                data_quality_level=data_quality_level,
             )
             st.session_state["portfolio"] = generated_portfolio
             st.session_state["demo_profile"] = demo_profile
+            st.session_state["data_quality_level"] = data_quality_level
             st.session_state["run_datetime"] = generation_datetime
             st.session_state["run_id"] = generate_run_id(generation_datetime)
             st.session_state["portfolio_generation_summary"] = {
                 "profile": demo_profile,
+                "data_quality_level": data_quality_level,
                 "requested_exposures": int(n_exposures),
                 "generated_exposures": int(len(generated_portfolio)),
                 "seed": int(seed),
@@ -1868,7 +1915,70 @@ def render_raw_data_quality_dashboard(
         "une date de chargement, les cut-offs attendus et les delais de production."
     )
 
-    st.markdown("#### Catalogue des tests sur la base brute")
+    st.markdown("#### Synthese graphique des controles")
+    evaluated_tests = raw_tests.loc[raw_tests["status"].ne("Non evalue")].copy()
+    status_summary = (
+        raw_tests.groupby("status", as_index=False)
+        .agg(test_count=("test_id", "count"))
+    )
+    control_by_dimension = (
+        evaluated_tests.groupby(["dimension", "status"], as_index=False)
+        .agg(test_count=("test_id", "count"))
+    )
+    summary_left, summary_right = st.columns([0.85, 1.15])
+    with summary_left:
+        status_figure = px.pie(
+            status_summary,
+            names="status",
+            values="test_count",
+            hole=0.62,
+            title="Statut du catalogue de controles",
+            color="status",
+            color_discrete_map={
+                "Pass": "#14664A",
+                "Fail": "#B44B4B",
+                "Non evalue": "#6D7885",
+            },
+        )
+        status_figure.update_traces(
+            textposition="inside",
+            textinfo="value+percent",
+            hovertemplate="<b>%{label}</b><br>Tests : %{value}<extra></extra>",
+        )
+        status_figure.update_layout(
+            height=380,
+            legend_title_text="",
+            paper_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=10, r=10, t=55, b=20),
+        )
+        st.plotly_chart(status_figure, width="stretch")
+
+    with summary_right:
+        control_figure = px.bar(
+            control_by_dimension,
+            x="dimension",
+            y="test_count",
+            color="status",
+            barmode="stack",
+            text="test_count",
+            title="Tests conformes et en echec par dimension",
+            color_discrete_map={"Pass": "#14664A", "Fail": "#B44B4B"},
+        )
+        control_figure.update_traces(
+            textposition="inside",
+            hovertemplate="<b>%{x}</b><br>Tests : %{y}<extra></extra>",
+        )
+        control_figure.update_layout(
+            height=380,
+            xaxis_title="",
+            yaxis_title="Nombre de tests",
+            legend_title_text="",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=10, r=10, t=55, b=50),
+        )
+        st.plotly_chart(control_figure, width="stretch")
+
     test_view = raw_tests.copy()
     test_view["Taux d'exception"] = test_view["exception_rate"].map(
         lambda value: "Non evalue" if pd.isna(value) else f"{value:.2%}"
@@ -1888,24 +1998,25 @@ def render_raw_data_quality_dashboard(
             "recommendation": "Action recommandee",
         }
     )
-    st.dataframe(
-        test_view[
-            [
-                "Dimension",
-                "Controle",
-                "Champ",
-                "Criticite",
-                "Population",
-                "Exceptions",
-                "Taux d'exception",
-                "Seuil",
-                "Statut",
-                "Action recommandee",
-            ]
-        ],
-        width="stretch",
-        hide_index=True,
-    )
+    with st.expander("Consulter le catalogue detaille des tests", expanded=False):
+        st.dataframe(
+            test_view[
+                [
+                    "Dimension",
+                    "Controle",
+                    "Champ",
+                    "Criticite",
+                    "Population",
+                    "Exceptions",
+                    "Taux d'exception",
+                    "Seuil",
+                    "Statut",
+                    "Action recommandee",
+                ]
+            ],
+            width="stretch",
+            hide_index=True,
+        )
 
     failed_tests = raw_tests.loc[raw_tests["status"].eq("Fail")].copy()
     st.markdown("#### Statistiques usuelles de qualite")

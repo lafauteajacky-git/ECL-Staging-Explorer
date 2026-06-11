@@ -21,6 +21,22 @@ DEMO_PORTFOLIO_PROFILES = [
     "Data Quality Issues Portfolio",
     "CRE Stress Portfolio",
 ]
+DATA_QUALITY_LEVELS = [
+    "Tres bonne qualite",
+    "Qualite moyenne",
+    "Qualite mediocre",
+]
+DATA_QUALITY_LEVEL_DESCRIPTIONS = {
+    "Tres bonne qualite": (
+        "Base largement complete et valide, sans anomalie artificielle ajoutee."
+    ),
+    "Qualite moyenne": (
+        "Quelques valeurs manquantes et incoherences sont injectees pour illustrer un dispositif de controle courant."
+    ),
+    "Qualite mediocre": (
+        "Taux d'anomalies renforce sur les donnees critiques, les identifiants et les relations entre champs."
+    ),
+}
 
 
 def generate_portfolio(n_exposures: int = 1_000, seed: int = 42) -> pd.DataFrame:
@@ -77,6 +93,7 @@ def generate_demo_portfolio(
     profile: str = "Balanced Portfolio",
     n_exposures: int = 1_000,
     seed: int = 42,
+    data_quality_level: str | None = None,
 ) -> pd.DataFrame:
     """Generate a synthetic portfolio shaped for a client demonstration profile.
 
@@ -89,17 +106,78 @@ def generate_demo_portfolio(
     portfolio = generate_portfolio(n_exposures=n_exposures, seed=seed)
     rng = np.random.default_rng(seed + 10_000)
 
-    if profile == "Balanced Portfolio":
-        return portfolio
     if profile == "Low Risk Portfolio":
-        return _apply_low_risk_profile(portfolio, rng)
-    if profile == "Deteriorated Portfolio":
-        return _apply_deteriorated_profile(portfolio, rng)
-    if profile == "Data Quality Issues Portfolio":
-        return _apply_data_quality_profile(portfolio, rng)
-    if profile == "CRE Stress Portfolio":
-        return _apply_cre_stress_profile(portfolio, rng)
+        portfolio = _apply_low_risk_profile(portfolio, rng)
+    elif profile == "Deteriorated Portfolio":
+        portfolio = _apply_deteriorated_profile(portfolio, rng)
+    elif profile == "Data Quality Issues Portfolio":
+        portfolio = (
+            _apply_data_quality_profile(portfolio, rng)
+            if data_quality_level is None
+            else _apply_deteriorated_profile(portfolio, rng)
+        )
+    elif profile == "CRE Stress Portfolio":
+        portfolio = _apply_cre_stress_profile(portfolio, rng)
+
+    if data_quality_level is not None:
+        portfolio = apply_data_quality_level(portfolio, data_quality_level, seed + 20_000)
     return portfolio
+
+
+def apply_data_quality_level(
+    portfolio: pd.DataFrame,
+    level: str = "Tres bonne qualite",
+    seed: int = 42,
+) -> pd.DataFrame:
+    """Apply a reproducible level of synthetic data-quality deterioration."""
+    if level not in DATA_QUALITY_LEVELS:
+        raise ValueError(f"Unknown data quality level: {level}")
+    if level == "Tres bonne qualite" or portfolio.empty:
+        return portfolio.copy()
+
+    rates = {
+        "Qualite moyenne": {
+            "rating": 0.008,
+            "pd": 0.006,
+            "lgd": 0.004,
+            "ead": 0.003,
+            "dpd": 0.003,
+            "ltv": 0.006,
+            "duplicate": 0.002,
+        },
+        "Qualite mediocre": {
+            "rating": 0.050,
+            "pd": 0.040,
+            "lgd": 0.030,
+            "ead": 0.020,
+            "dpd": 0.015,
+            "ltv": 0.040,
+            "duplicate": 0.015,
+        },
+    }[level]
+    result = portfolio.copy()
+    rng = np.random.default_rng(seed)
+
+    def sample(rate: float) -> pd.Index:
+        count = max(1, int(len(result) * rate))
+        return pd.Index(rng.choice(result.index, size=count, replace=False))
+
+    result.loc[sample(rates["rating"]), "current_rating"] = np.nan
+    result.loc[sample(rates["pd"]), ["pd_12m", "pd_lifetime"]] = np.nan
+    result.loc[sample(rates["lgd"]), "lgd"] = np.nan
+
+    invalid_ead = sample(rates["ead"])
+    result.loc[invalid_ead, "ead"] = -result.loc[invalid_ead, "ead"].abs()
+    result.loc[sample(rates["dpd"]), "days_past_due"] = -5
+
+    invalid_ltv = sample(rates["ltv"])
+    result.loc[invalid_ltv, "collateral_flag"] = False
+    result.loc[invalid_ltv, "ltv"] = rng.uniform(0.35, 1.4, size=len(invalid_ltv)).round(4)
+
+    duplicate_rows = sample(rates["duplicate"])
+    source_rows = rng.choice(result.index, size=len(duplicate_rows), replace=False)
+    result.loc[duplicate_rows, "loan_id"] = result.loc[source_rows, "loan_id"].to_numpy()
+    return result
 
 
 def _apply_low_risk_profile(portfolio: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
