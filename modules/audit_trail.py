@@ -9,7 +9,7 @@ import pandas as pd
 from modules.demo_config import DEMO_DISCLAIMER_FR
 
 
-APP_VERSION = "V1.1"
+APP_VERSION = "V2.0"
 
 
 def generate_run_id(run_datetime: datetime | None = None) -> str:
@@ -39,6 +39,8 @@ def build_audit_trail(
     client_discussion_points: list[str] | None = None,
     demo_profile: str | None = None,
     staging_transition_summary: pd.DataFrame | None = None,
+    risk_parameter_summary: dict | None = None,
+    lifetime_pd_curve: pd.DataFrame | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Build a detailed, Excel-friendly audit trail."""
     warnings = [
@@ -47,6 +49,7 @@ def build_audit_trail(
         "Scenarios macro appliques via multiplicateurs simples PD/LGD.",
         "Overlays appliques en pourcentage de l'ECL avant overlay.",
         "Pas de discounting des cash-flows dans le MVP.",
+        "PD lifetime calculee par taux de hasard annuel constant derive de la PD 12 mois.",
         "Periodes de cure pedagogiques: 3 mois Stage 3 vers Stage 2, 6 mois Stage 2 vers Stage 1 et 12 mois pour un retour exceptionnel Stage 3 vers Stage 1.",
     ]
     run_summary = pd.DataFrame(
@@ -104,4 +107,13 @@ def build_audit_trail(
         audit_trail["client_discussion_points"] = pd.DataFrame({"discussion_point": client_discussion_points})
     if staging_transition_summary is not None:
         audit_trail["staging_transition_summary"] = staging_transition_summary.copy()
+    if risk_parameter_summary is not None:
+        audit_trail["risk_parameter_summary"] = pd.DataFrame(
+            [
+                {"metric": metric, "value": value}
+                for metric, value in risk_parameter_summary.items()
+            ]
+        )
+    if lifetime_pd_curve is not None:
+        audit_trail["lifetime_pd_curve"] = lifetime_pd_curve.copy()
     return audit_trail

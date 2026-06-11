@@ -53,6 +53,19 @@ def test_generated_portfolio_contains_staging_transition_fields():
     assert expected_fields.issubset(portfolio.columns)
 
 
+def test_generated_portfolio_contains_calculated_lifetime_pd_fields():
+    portfolio = generate_demo_portfolio(
+        profile="Balanced Portfolio",
+        n_exposures=100,
+        seed=7,
+    )
+
+    assert {"pd_lifetime", "pd_lifetime_multiplier", "pd_lifetime_method"}.issubset(
+        portfolio.columns
+    )
+    assert (portfolio["pd_lifetime"] >= portfolio["pd_12m"]).all()
+
+
 def test_all_data_quality_levels_preserve_portfolio_size():
     for level in DATA_QUALITY_LEVELS:
         portfolio = generate_demo_portfolio(

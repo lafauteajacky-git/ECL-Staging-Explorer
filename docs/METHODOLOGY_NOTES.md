@@ -37,9 +37,15 @@ Une implementation reelle doit etre adaptee a la politique SICR, aux definitions
 
 ## PD 12M et PD lifetime
 
-Les PD sont generees de maniere synthetique a partir d'une logique simple de rating et de maturite.
+Les PD 12 mois sont generees de maniere synthetique a partir d'une logique simple de rating.
 
-Il n'y a pas de courbe PD lifetime calibree, pas de segmentation modele, pas de vintage analysis et pas de validation statistique.
+Depuis la V2, la PD lifetime est calculee a partir de la PD 12 mois et de la maturite residuelle selon :
+
+`PD cumulative(t) = 1 - (1 - PD 12 mois)^t`
+
+Cette approche suppose un taux de hasard annuel constant. La PD marginale correspond a la variation de PD cumulative entre deux horizons successifs. Un horizon minimal d'un an est applique pour rester coherent avec la convention simplifiee de PD 12 mois du demonstrateur.
+
+Il n'y a pas de courbe PIT/TTC calibree, de matrice de transition, de segmentation modele, de vintage analysis ou de validation statistique.
 
 ## LGD simplifiee
 

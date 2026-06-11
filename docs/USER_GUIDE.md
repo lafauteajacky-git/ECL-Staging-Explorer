@@ -106,4 +106,21 @@ Le fichier suit le format :
 ECL_Staging_Explorer_RUN-YYYYMMDD-HHMMSS.xlsx
 ```
 
-L'export contient notamment les onglets `Disclaimer`, `Portfolio`, `Data Quality Issues`, `Staging Results`, `ECL Results`, `Dashboard Summary`, `Audit Trail`, `Committee Summary`, `Business Consistency`, `Demo Storyline` et `Client Discussion Points`.
+L'export contient notamment les onglets `Disclaimer`, `Portfolio`, `Data Quality Issues`, `Staging Results`, `ECL Results`, `Risk Parameters`, `Lifetime PD Curve`, `Dashboard Summary`, `Audit Trail`, `Committee Summary`, `Business Consistency`, `Demo Storyline` et `Client Discussion Points`.
+
+## Lire les parametres de risque
+
+L'onglet `Parametres de risque` presente :
+
+- la PD 12 mois moyenne ponderee par l'EAD ;
+- la PD lifetime cumulative moyenne ;
+- le multiplicateur entre PD lifetime et PD 12 mois ;
+- la LGD moyenne ponderee ;
+- la courbe de PD cumulative par stage ;
+- les PD par rating et les PD marginales annuelles.
+
+Dans la V2, la PD lifetime est calculee avec une hypothese de taux de hasard annuel constant :
+
+`PD cumulative(t) = 1 - (1 - PD 12 mois)^t`
+
+Cette formule est pedagogique. Elle ne remplace pas des courbes de PD calibrees, des matrices de transition ou des modeles PIT/TTC utilises en production.

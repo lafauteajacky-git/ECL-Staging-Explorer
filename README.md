@@ -28,7 +28,7 @@ Le demonstrateur aide a illustrer en rendez-vous client ou en atelier interne :
 
 La V1 ne propose aucun import de fichier externe. Tous les portefeuilles sont generes localement par le moteur de donnees synthetiques du demonstrateur.
 
-## Fonctionnalites principales V1.1
+## Fonctionnalites principales V2
 
 - Profils de portefeuille de demonstration : `Balanced`, `Low Risk`, `Deteriorated`, `Data Quality Issues`, `CRE Stress`.
 - Data quality checks et score qualite.
@@ -47,6 +47,11 @@ La V1 ne propose aucun import de fichier externe. Tous les portefeuilles sont ge
 - Coercition stricte des indicateurs booleens et bornage des PD/LGD entre 0% et 100%.
 - Ratios ECL/EAD et indicateurs derives proteges contre les divisions par zero.
 - Interface reorganisee dans `ui/` : theme, branding et composants KPI reutilisables.
+- Onglet `Parametres de risque` remplacant la vue Business Consistency.
+- PD lifetime calculee a partir de la PD 12 mois et de la maturite residuelle.
+- Courbes de PD cumulative et PD marginales par horizon.
+- Analyse des PD par stage et par rating, avec moyennes ponderees par l'EAD.
+- Exports `Risk Parameters` et `Lifetime PD Curve`.
 
 ## Installation
 
@@ -96,7 +101,7 @@ Remove-Item outputs\*.xlsx, outputs\*.log, outputs\*.md, outputs\*.docx -ErrorAc
 2. Choisir un `Demo Portfolio Profile`.
 3. Revoir le portefeuille synthetique.
 4. Lire les controles `Data Quality`.
-5. Lire les controles `Business Consistency`.
+5. Analyser les `Parametres de risque`, notamment les PD 12 mois et lifetime.
 6. Presenter le `Staging`.
 7. Presenter le calcul `ECL Calculation`.
 8. Simuler un scenario macro downside.
@@ -139,6 +144,7 @@ modules/
   business_checks.py
   staging_engine.py
   ecl_calculator.py
+  risk_parameters.py
   scenario_engine.py
   overlay_engine.py
   reporting.py

@@ -110,3 +110,25 @@ def test_excel_export_includes_v06_business_demo_sheets():
     assert "Business Consistency" in workbook.sheetnames
     assert "Demo Storyline" in workbook.sheetnames
     assert "Client Discussion Points" in workbook.sheetnames
+
+
+def test_excel_export_includes_v2_risk_parameter_sheets():
+    payload = build_excel_export_bytes(
+        pd.DataFrame({"loan_id": ["LN-1"]}),
+        pd.DataFrame(columns=["loan_id", "check_code"]),
+        pd.DataFrame({"loan_id": ["LN-1"], "stage": ["Stage 1"]}),
+        pd.DataFrame({"loan_id": ["LN-1"], "ecl": [10]}),
+        pd.DataFrame({"metric": ["ECL"], "value": [10]}),
+        {"run_summary": pd.DataFrame({"item": ["run"], "value": ["RUN-1"]})},
+        risk_parameters=pd.DataFrame(
+            {"loan_id": ["LN-1"], "pd_12m": [0.02], "pd_lifetime": [0.05]}
+        ),
+        lifetime_pd_curve=pd.DataFrame(
+            {"stage": ["Stage 1"], "year": [1], "cumulative_pd": [0.02]}
+        ),
+    )
+
+    workbook = load_workbook(BytesIO(payload), read_only=True)
+
+    assert "Risk Parameters" in workbook.sheetnames
+    assert "Lifetime PD Curve" in workbook.sheetnames

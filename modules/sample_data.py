@@ -9,6 +9,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from modules.risk_parameters import add_lifetime_pd_metrics
+
 
 PRODUCT_TYPES = ["Mortgage", "SME term loan", "Corporate loan", "Consumer loan", "Credit card"]
 SECTORS = ["Households", "Manufacturing", "Retail", "Real estate", "Technology", "Energy"]
@@ -64,8 +66,7 @@ def generate_portfolio(n_exposures: int = 1_000, seed: int = 42) -> pd.DataFrame
     maturity = rng.integers(1, 121, size=n_exposures)
     base_pd = np.clip(0.002 + (current_rating - 1) * 0.012 + rng.normal(0, 0.005, n_exposures), 0.0005, 0.35)
     pd_12m = np.round(base_pd, 5)
-    lifetime_multiplier = np.clip(maturity / 24, 1.2, 5.0)
-    pd_lifetime = np.round(np.clip(pd_12m * lifetime_multiplier, 0.001, 0.95), 5)
+    pd_lifetime = np.zeros(n_exposures)
     lgd = np.round(rng.uniform(0.18, 0.65, size=n_exposures), 4)
 
     default_flag = rng.random(n_exposures) < np.clip((current_rating - 7) * 0.035, 0.005, 0.18)
@@ -99,6 +100,7 @@ def generate_portfolio(n_exposures: int = 1_000, seed: int = 42) -> pd.DataFrame
         }
     )
     portfolio["initial_stage"] = "Stage 1"
+    portfolio = add_lifetime_pd_metrics(portfolio)
     return _add_staging_transition_context(portfolio, rng)
 
 
@@ -132,6 +134,7 @@ def generate_demo_portfolio(
     elif profile == "CRE Stress Portfolio":
         portfolio = _apply_cre_stress_profile(portfolio, rng)
 
+    portfolio = add_lifetime_pd_metrics(portfolio)
     if data_quality_level is not None:
         portfolio = apply_data_quality_level(portfolio, data_quality_level, seed + 20_000)
     return _add_staging_transition_context(portfolio, rng)

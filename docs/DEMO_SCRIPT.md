@@ -39,7 +39,9 @@ Message cle : la qualite des donnees conditionne la fiabilite de l'ECL.
 
 ## 4. Coherence metier - 1 minute
 
-Ouvrir `Business Consistency`.
+Ouvrir `Parametres de risque`.
+
+Presenter la PD 12 mois, la PD lifetime et la courbe cumulative par stage. Expliquer que la V2 utilise une hypothese de taux de hasard constant, transparente et facilement remplacable par des courbes calibrees dans une implementation client.
 
 Montrer le score de coherence, les alertes et les recommandations.
 

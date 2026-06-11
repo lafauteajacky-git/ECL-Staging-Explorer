@@ -66,6 +66,12 @@ from modules.reporting import (
     build_top_ecl_contributors,
     export_results_to_excel,
 )
+from modules.risk_parameters import (
+    LIFETIME_PD_METHOD,
+    aggregate_lifetime_pd_curve,
+    build_lifetime_pd_term_structure,
+    summarize_risk_parameters,
+)
 from modules.sample_data import (
     DATA_QUALITY_LEVEL_DESCRIPTIONS,
     DATA_QUALITY_LEVELS,
@@ -422,7 +428,7 @@ def main() -> None:
                 "Accueil",
                 "Portefeuille",
                 "Data Quality",
-                "Business Consistency",
+                "Parametres de risque",
                 "Staging",
                 "ECL Calculation",
                 "Macro Scenarios",
@@ -457,7 +463,16 @@ def main() -> None:
         "portfolio" in st.session_state
         and "previous_stage" not in st.session_state["portfolio"].columns
     )
-    if generate_clicked or "portfolio" not in st.session_state or portfolio_requires_transition_upgrade:
+    portfolio_requires_risk_upgrade = (
+        "portfolio" in st.session_state
+        and "pd_lifetime_method" not in st.session_state["portfolio"].columns
+    )
+    if (
+        generate_clicked
+        or "portfolio" not in st.session_state
+        or portfolio_requires_transition_upgrade
+        or portfolio_requires_risk_upgrade
+    ):
         generation_datetime = datetime.now()
         generated_portfolio = load_synthetic_portfolio(
             n_exposures=n_exposures,
@@ -524,6 +539,12 @@ def main() -> None:
         staged = assign_stage(portfolio)
         ecl_portfolio = calculate_ecl(staged)
         ecl_portfolio = build_review_flags(ecl_portfolio, findings)
+        risk_parameter_summary = summarize_risk_parameters(ecl_portfolio)
+        lifetime_pd_term_structure = build_lifetime_pd_term_structure(ecl_portfolio)
+        lifetime_pd_curve = aggregate_lifetime_pd_curve(
+            lifetime_pd_term_structure,
+            "stage",
+        )
         ecl_by_stage = aggregate_ecl_by_stage(ecl_portfolio)
         ecl_by_product = aggregate_ecl_by_dimension(ecl_portfolio, "product_type")
         ecl_by_sector = aggregate_ecl_by_dimension(ecl_portfolio, "sector")
@@ -576,6 +597,13 @@ def main() -> None:
             [{"metric": metric, "value": value} for metric, value in business_summary.items()]
         )
         audit_view["business_alerts"] = business_alerts
+        audit_view["risk_parameter_summary"] = pd.DataFrame(
+            [
+                {"metric": metric, "value": value}
+                for metric, value in risk_parameter_summary.items()
+            ]
+        )
+        audit_view["lifetime_pd_curve"] = lifetime_pd_curve
         staging_transition_summary = (
             staged.groupby(
                 ["previous_stage", "stage", "transition_rule", "probation_status"],
@@ -610,6 +638,8 @@ def main() -> None:
             client_discussion_points,
             active_demo_profile,
             staging_transition_summary=staging_transition_summary,
+            risk_parameter_summary=risk_parameter_summary,
+            lifetime_pd_curve=lifetime_pd_curve,
         )
         committee_summary = generate_committee_summary(
             run_id,
@@ -651,8 +681,13 @@ def main() -> None:
             raw_column_profile,
         )
 
-    elif selected_page == "Business Consistency":
-        render_business_consistency(business_summary, business_alerts)
+    elif selected_page == "Parametres de risque":
+        render_risk_parameters(
+            ecl_portfolio,
+            risk_parameter_summary,
+            lifetime_pd_term_structure,
+            lifetime_pd_curve,
+        )
 
     elif selected_page == "Staging":
         render_staging_migration_analysis(staged)
@@ -753,12 +788,33 @@ def main() -> None:
                 "current_rating",
                 "origination_pd_12m",
                 "pd_12m",
+                "pd_lifetime",
+                "pd_lifetime_multiplier",
+                "pd_lifetime_method",
                 "sicr_flag",
                 "credit_impaired_flag",
                 "unlikely_to_pay_flag",
                 "bankruptcy_flag",
                 "distressed_restructuring_flag",
                 "payment_normalized_flag",
+            ]
+        ]
+        risk_parameter_export = ecl_portfolio[
+            [
+                "loan_id",
+                "client_id",
+                "stage",
+                "product_type",
+                "sector",
+                "country",
+                "ead",
+                "residual_maturity_months",
+                "current_rating",
+                "pd_12m",
+                "pd_lifetime",
+                "pd_lifetime_multiplier",
+                "lgd",
+                "pd_lifetime_method",
             ]
         ]
         export_bytes = build_excel_export_bytes(
@@ -777,6 +833,8 @@ def main() -> None:
             business_alerts,
             storyline_to_frame(),
             discussion_points_to_frame(client_discussion_points),
+            risk_parameters=risk_parameter_export,
+            lifetime_pd_curve=lifetime_pd_curve,
         )
         if st.button("Exporter dans le dossier outputs"):
             try:
@@ -798,6 +856,8 @@ def main() -> None:
                     storyline_to_frame(),
                     discussion_points_to_frame(client_discussion_points),
                     file_name=export_file_name,
+                    risk_parameters=risk_parameter_export,
+                    lifetime_pd_curve=lifetime_pd_curve,
                 )
                 st.success(f"Export cree : {output_path}")
             except Exception as exc:
@@ -2852,6 +2912,43 @@ def render_audit_trail(audit_trail: dict[str, pd.DataFrame]) -> None:
     st.markdown("#### Formules de calcul ECL")
     render_ecl_formula_view()
 
+    risk_summary_table = audit_trail.get("risk_parameter_summary", pd.DataFrame())
+    risk_values = _audit_section_to_dict(
+        risk_summary_table,
+        "metric",
+        "value",
+    )
+    if risk_values:
+        st.markdown("#### Parametres de risque et PD lifetime")
+        render_light_kpi_panel(
+            "Hypotheses de risque du run",
+            [
+                (
+                    "PD 12 mois",
+                    f"{float(risk_values.get('pd_12m_ead_weighted', 0)):.2%}",
+                    "Moyenne ponderee par l'EAD",
+                ),
+                (
+                    "PD lifetime",
+                    f"{float(risk_values.get('pd_lifetime_ead_weighted', 0)):.2%}",
+                    "PD cumulative ponderee",
+                ),
+                (
+                    "LGD",
+                    f"{float(risk_values.get('lgd_ead_weighted', 0)):.2%}",
+                    "Moyenne ponderee par l'EAD",
+                ),
+                (
+                    "Maturite",
+                    f"{float(risk_values.get('average_residual_maturity_months', 0)):.0f} mois",
+                    "Maturite residuelle moyenne",
+                ),
+            ],
+        )
+        st.latex(
+            r"\mathrm{PD}_{cum}(t)=1-\left(1-\mathrm{PD}_{12m}\right)^t"
+        )
+
     scenario_parameters = audit_trail.get("scenario_parameters", pd.DataFrame())
     scenario_results = audit_trail.get("scenario_results", pd.DataFrame())
     st.markdown("#### Scenarios macroeconomiques")
@@ -3079,46 +3176,229 @@ def _render_audit_bullets(title: str, table: pd.DataFrame | None, columns: list[
         st.caption(f"{len(table) - limit} ligne(s) supplementaire(s) disponibles dans les details auditables.")
 
 
-def render_business_consistency(business_summary: dict[str, float], business_alerts: pd.DataFrame) -> None:
-    """Render business consistency score and alerts."""
-    st.subheader("Business Consistency")
+def render_risk_parameters(
+    portfolio: pd.DataFrame,
+    summary: dict[str, float | str],
+    term_structure: pd.DataFrame,
+    curve_by_stage: pd.DataFrame,
+) -> None:
+    """Render the V2 methodological view of PD, LGD and future EAD topics."""
+    st.subheader("Parametres de risque")
     st.write(
-        "Ces controles recherchent des incoherences metier simples entre stage, defaut, DPD, PD, LGD et ECL. "
-        "Ils servent a orienter la revue, sans remplacer une validation de modele."
+        "Lecture methodologique des probabilites de defaut et de la LGD utilisees "
+        "dans le calcul ECL. La V2 introduit une courbe de PD lifetime cumulative "
+        "derivee de la PD 12 mois et de la maturite residuelle."
     )
     render_kpi_panel(
-        "Lecture synthetique de la coherence metier",
+        "Synthese des parametres de risque",
         [
             (
-                "Score de coherence",
-                f"{business_summary['business_consistency_score']:.1%}",
-                "Part des controles sans alerte",
+                "PD 12 mois",
+                f"{float(summary['pd_12m_ead_weighted']):.2%}",
+                "Moyenne ponderee par l'EAD",
             ),
             (
-                "Controles passes",
-                f"{int(business_summary['business_checks_passed']):,}".replace(",", " "),
-                "Tests de coherence satisfaits",
+                "PD lifetime",
+                f"{float(summary['pd_lifetime_ead_weighted']):.2%}",
+                "Moyenne cumulative ponderee par l'EAD",
             ),
             (
-                "Alertes",
-                str(int(business_summary["business_alert_count"])),
-                "Cas necessitant une analyse",
+                "Multiplicateur lifetime",
+                f"x{float(summary['pd_lifetime_multiplier']):.2f}",
+                "PD lifetime / PD 12 mois",
             ),
             (
-                "Alertes critiques",
-                str(int(business_summary["business_critical_alert_count"])),
-                "Points a prioriser",
+                "LGD",
+                f"{float(summary['lgd_ead_weighted']):.2%}",
+                "Moyenne ponderee par l'EAD",
+            ),
+        ],
+        [
+            (
+                "Maturite residuelle moyenne",
+                f"{float(summary['average_residual_maturity_months']):.0f} mois",
+                "Horizon contractuel synthetique",
+            ),
+            (
+                "Methode PD lifetime",
+                "Taux de hasard constant",
+                "Approche transparente et pedagogique",
             ),
         ],
     )
-    if business_alerts.empty:
-        st.success("Aucune alerte de coherence metier detectee.")
+
+    with st.container(border=True):
+        st.markdown("#### Construction de la PD lifetime")
+        st.latex(
+            r"\mathrm{PD}_{cum}(t)=1-\left(1-\mathrm{PD}_{12m}\right)^t"
+        )
+        st.caption(
+            "t correspond a la maturite residuelle exprimee en annees. "
+            "La PD marginale de chaque periode est la variation de PD cumulative. "
+            "Un horizon minimal d'un an est retenu dans cette version pedagogique."
+        )
+
+    st.markdown("#### Courbe de PD lifetime par stage")
+    if curve_by_stage.empty:
+        st.info("Courbe de PD lifetime indisponible pour le perimetre selectionne.")
     else:
-        severity_filter = st.multiselect("Filtrer par criticite", sorted(business_alerts["severity"].unique()))
-        filtered = business_alerts.copy()
-        if severity_filter:
-            filtered = filtered[filtered["severity"].isin(severity_filter)]
-        st.dataframe(filtered, width="stretch")
+        curve_figure = px.line(
+            curve_by_stage,
+            x="year",
+            y="cumulative_pd",
+            color="stage",
+            markers=True,
+            labels={
+                "year": "Horizon (annees)",
+                "cumulative_pd": "PD cumulative",
+                "stage": "Stage",
+            },
+            color_discrete_map={
+                "Stage 1": "#8298AA",
+                "Stage 2": "#F1A986",
+                "Stage 3": "#0B2B46",
+            },
+        )
+        curve_figure.update_layout(
+            height=430,
+            yaxis_tickformat=".1%",
+            legend_title_text="",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=10, r=10, t=25, b=20),
+        )
+        st.plotly_chart(curve_figure, width="stretch")
+
+    rating_data = portfolio.copy()
+    for column in ["current_rating", "pd_12m", "pd_lifetime", "lgd", "ead"]:
+        rating_data[column] = pd.to_numeric(rating_data[column], errors="coerce")
+    rating_data = rating_data.dropna(
+        subset=["current_rating", "pd_12m", "pd_lifetime"]
+    )
+    rating_records = []
+    for rating, group in rating_data.groupby("current_rating"):
+        ead = group["ead"].clip(lower=0).fillna(0.0)
+        rating_records.append(
+            {
+                "current_rating": int(rating),
+                "pd_12m": safe_divide(
+                    float((group["pd_12m"] * ead).sum()),
+                    float(ead.sum()),
+                ),
+                "pd_lifetime": safe_divide(
+                    float((group["pd_lifetime"] * ead).sum()),
+                    float(ead.sum()),
+                ),
+            }
+        )
+    rating_summary = pd.DataFrame(rating_records)
+
+    left, right = st.columns(2)
+    with left:
+        if not rating_summary.empty:
+            rating_long = rating_summary.melt(
+                id_vars="current_rating",
+                value_vars=["pd_12m", "pd_lifetime"],
+                var_name="parameter",
+                value_name="pd",
+            )
+            rating_figure = px.bar(
+                rating_long,
+                x="current_rating",
+                y="pd",
+                color="parameter",
+                barmode="group",
+                labels={
+                    "current_rating": "Rating courant",
+                    "pd": "Probabilite de defaut",
+                    "parameter": "Parametre",
+                },
+                color_discrete_map={
+                    "pd_12m": "#8298AA",
+                    "pd_lifetime": "#0B2B46",
+                },
+                title="PD 12 mois et lifetime par rating",
+            )
+            rating_figure.update_layout(
+                height=390,
+                yaxis_tickformat=".1%",
+                legend_title_text="",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(rating_figure, width="stretch")
+    with right:
+        distribution_figure = px.box(
+            rating_data,
+            x="stage",
+            y="pd_lifetime",
+            color="stage",
+            points=False,
+            title="Distribution des PD lifetime par stage",
+            labels={"stage": "Stage", "pd_lifetime": "PD lifetime"},
+            color_discrete_map={
+                "Stage 1": "#8298AA",
+                "Stage 2": "#F1A986",
+                "Stage 3": "#0B2B46",
+            },
+        )
+        distribution_figure.update_layout(
+            height=390,
+            showlegend=False,
+            yaxis_tickformat=".1%",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(distribution_figure, width="stretch")
+
+    st.markdown("#### PD marginales et exposition au risque")
+    if not term_structure.empty:
+        marginal_by_year = (
+            term_structure.groupby("year", as_index=False)
+            .agg(marginal_pd=("marginal_pd", "mean"), active_ead=("ead", "sum"))
+        )
+        marginal_figure = px.bar(
+            marginal_by_year,
+            x="year",
+            y="marginal_pd",
+            text_auto=".2%",
+            labels={"year": "Annee", "marginal_pd": "PD marginale moyenne"},
+            color_discrete_sequence=["#F1A986"],
+        )
+        marginal_figure.update_layout(
+            height=350,
+            yaxis_tickformat=".1%",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(marginal_figure, width="stretch")
+
+    st.markdown("#### Hypotheses et prochaines evolutions")
+    assumption_columns = st.columns(3)
+    assumptions = [
+        (
+            "PD lifetime V2",
+            LIFETIME_PD_METHOD,
+            "Courbe cumulative et PD marginales derivees de la PD 12 mois.",
+        ),
+        (
+            "LGD actuelle",
+            "LGD statique par exposition",
+            "Pas encore de courbe de recovery ni de collateral dynamique.",
+        ),
+        (
+            "EAD - prochaine etape",
+            "EAD constante",
+            "Architecture prete pour amortissement, CCF, tirages futurs et prepayments.",
+        ),
+    ]
+    for column, (label, value, detail) in zip(
+        assumption_columns,
+        assumptions,
+        strict=False,
+    ):
+        with column:
+            render_governance_card(label, value, detail)
 
 
 def render_committee_summary_visual(
@@ -3596,7 +3876,7 @@ def render_regulatory_audit_view(audit_view: dict[str, pd.DataFrame]) -> None:
         if len(business_alerts) > len(alerts_to_show):
             st.caption(
                 f"{len(business_alerts) - len(alerts_to_show)} alerte(s) supplementaire(s) "
-                "sont disponibles dans l'export et l'onglet Business Consistency."
+                "sont disponibles dans l'export et l'Audit Trail."
             )
 
 
