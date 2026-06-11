@@ -24,7 +24,7 @@ from modules.business_checks import (
 from modules.committee_summary import build_docx_bytes, generate_committee_summary
 from modules.data_quality import missing_required_columns
 from modules.data_quality import run_data_quality_checks, summarize_quality_findings
-from modules.data_quality import calculate_quality_score
+from modules.data_quality import build_quality_dashboard_metrics, build_quality_dimension_summary
 from modules.demo_config import APP_NAME, DEMO_DISCLAIMER_FR, EXPORT_FILE_PREFIX
 from modules.ecl_calculator import calculate_ecl
 from modules.overlay_engine import (
@@ -911,7 +911,8 @@ def main() -> None:
     try:
         findings = run_data_quality_checks(portfolio)
         dq_summary = summarize_quality_findings(findings)
-        quality_score = calculate_quality_score(portfolio, findings)
+        quality_metrics = build_quality_dashboard_metrics(portfolio, findings)
+        quality_dimensions = build_quality_dimension_summary(portfolio, findings)
         staged = assign_stage(portfolio)
         ecl_portfolio = calculate_ecl(staged)
         ecl_portfolio = build_review_flags(ecl_portfolio, findings)
@@ -1020,13 +1021,13 @@ def main() -> None:
         render_portfolio_dashboard(portfolio, metrics)
 
     elif selected_page == "Data Quality":
-        st.subheader("Controles de qualite des donnees")
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Nombre d'anomalies", len(findings))
-        col2.metric("Expositions concernees", findings["loan_id"].nunique() if not findings.empty else 0)
-        col3.metric("Score qualite", f"{quality_score:.2f}/100")
-        st.dataframe(dq_summary, width="stretch")
-        st.dataframe(findings, width="stretch")
+        render_data_quality_dashboard(
+            portfolio,
+            findings,
+            dq_summary,
+            quality_metrics,
+            quality_dimensions,
+        )
 
     elif selected_page == "Business Consistency":
         render_business_consistency(business_summary, business_alerts)
@@ -1572,6 +1573,200 @@ def render_portfolio_dashboard(portfolio: pd.DataFrame, metrics: dict[str, float
         )
         maturity_distribution.update_layout(height=360, yaxis_title="Nombre d'expositions")
         st.plotly_chart(maturity_distribution, width="stretch")
+
+
+def render_data_quality_dashboard(
+    portfolio: pd.DataFrame,
+    findings: pd.DataFrame,
+    findings_summary: pd.DataFrame,
+    quality_metrics: dict[str, float | int],
+    dimension_summary: pd.DataFrame,
+) -> None:
+    """Render a BCBS 239-inspired data quality management view."""
+    st.subheader("Data Quality - vue de pilotage")
+    st.write(
+        "Evaluation pedagogique de la qualite des donnees selon des dimensions inspirees de BCBS 239 : "
+        "completude, validite, coherence, exactitude et integrite."
+    )
+    st.caption(
+        "Cette vue ne constitue pas une evaluation complete de conformite BCBS 239. "
+        "La ponctualite, la tracabilite des sources et les controles d'agregation ne sont pas encore modelises."
+    )
+
+    kpi_cols = st.columns(4)
+    with kpi_cols[0]:
+        render_kpi_card(
+            "Score qualite global",
+            f"{float(quality_metrics['quality_score']):.2f}%",
+            "8 controles automatises",
+        )
+    with kpi_cols[1]:
+        render_kpi_card(
+            "Expositions affectees",
+            f"{int(quality_metrics['impacted_exposure_count']):,}".replace(",", " "),
+            f"{float(quality_metrics['impacted_exposure_rate']):.1%} du portefeuille",
+        )
+    with kpi_cols[2]:
+        render_kpi_card(
+            "Anomalies critiques",
+            str(int(quality_metrics["critical_issue_count"])),
+            f"{int(quality_metrics['critical_exposure_count'])} exposition(s)",
+        )
+    with kpi_cols[3]:
+        render_kpi_card(
+            "EAD affectee",
+            format_compact_currency(float(quality_metrics["impacted_ead"])),
+            f"{float(quality_metrics['impacted_ead_rate']):.1%} de l'EAD",
+        )
+
+    st.markdown("#### Evaluation par dimension")
+    evaluated_dimensions = dimension_summary.loc[dimension_summary["score"].notna()].copy()
+    dimension_colors = {
+        "Maitrise": "#14664A",
+        "A surveiller": "#F1A986",
+        "Revue requise": "#B44B4B",
+    }
+    dimension_figure = px.bar(
+        evaluated_dimensions,
+        x="score",
+        y="dimension",
+        orientation="h",
+        color="status",
+        color_discrete_map=dimension_colors,
+        text="score",
+        title="Score de qualite par dimension",
+        range_x=[0, 100],
+    )
+    dimension_figure.update_traces(
+        texttemplate="%{text:.2f}%",
+        textposition="inside",
+        hovertemplate="<b>%{y}</b><br>Score : %{x:.2f}%<extra></extra>",
+    )
+    dimension_figure.update_layout(
+        height=360,
+        xaxis_title="Score",
+        yaxis_title="",
+        legend_title_text="",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#0B2B46"),
+        margin=dict(l=10, r=20, t=55, b=25),
+    )
+    st.plotly_chart(dimension_figure, width="stretch")
+
+    freshness_row = dimension_summary.loc[dimension_summary["dimension"].eq("Fraicheur / ponctualite")]
+    if not freshness_row.empty:
+        st.info(
+            "Fraicheur / ponctualite : non evaluee dans cette version. "
+            "Une implementation BCBS 239 devrait controler les dates de reference, cut-off, delais d'alimentation "
+            "et respect des frequences de reporting."
+        )
+
+    st.markdown("#### Diagnostic des anomalies")
+    chart_left, chart_right = st.columns([1.05, 0.95])
+    with chart_left:
+        if findings_summary.empty:
+            st.success("Aucune anomalie detectee sur les controles actifs.")
+        else:
+            issue_chart = findings_summary.sort_values("issue_count", ascending=True)
+            issue_figure = px.bar(
+                issue_chart,
+                x="issue_count",
+                y="description",
+                orientation="h",
+                title="Anomalies par type de controle",
+                text="issue_count",
+                color_discrete_sequence=["#0B2B46"],
+            )
+            issue_figure.update_layout(
+                height=410,
+                xaxis_title="Nombre d'anomalies",
+                yaxis_title="",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                margin=dict(l=10, r=20, t=55, b=25),
+            )
+            st.plotly_chart(issue_figure, width="stretch")
+
+    with chart_right:
+        if findings.empty:
+            st.success("Aucune EAD affectee.")
+        else:
+            issue_ead = (
+                findings.merge(portfolio[["loan_id", "ead"]], on="loan_id", how="left")
+                .assign(ead=lambda frame: pd.to_numeric(frame["ead"], errors="coerce").fillna(0).clip(lower=0))
+                .groupby("description", as_index=False)
+                .agg(impacted_ead=("ead", "sum"))
+                .sort_values("impacted_ead", ascending=True)
+            )
+            ead_figure = px.bar(
+                issue_ead,
+                x="impacted_ead",
+                y="description",
+                orientation="h",
+                title="EAD affectee par type d'anomalie",
+                text_auto=".3s",
+                color_discrete_sequence=["#F1A986"],
+            )
+            ead_figure.update_layout(
+                height=410,
+                xaxis_title="EAD affectee",
+                yaxis_title="",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                margin=dict(l=10, r=20, t=55, b=25),
+            )
+            st.plotly_chart(ead_figure, width="stretch")
+
+    st.markdown("#### Principes de lecture BCBS 239")
+    principle_cols = st.columns(3)
+    principles = [
+        (
+            "Completude",
+            "Disponibilite des ratings, PD et LGD necessaires au calcul et au reporting des risques.",
+        ),
+        (
+            "Exactitude et integrite",
+            "Absence de valeurs invalides, conservation de la logique economique et fiabilite des donnees critiques.",
+        ),
+        (
+            "Coherence",
+            "Alignement entre defaut et DPD, collateral et LTV, ainsi qu'entre indicateurs relies.",
+        ),
+    ]
+    for container, (title, description) in zip(principle_cols, principles):
+        with container:
+            st.markdown(
+                f"""
+                <div style="
+                    min-height:150px;
+                    padding:20px;
+                    border:1px solid rgba(11,43,70,0.14);
+                    border-radius:14px;
+                    background:rgba(255,255,255,0.84);
+                ">
+                    <div style="color:#F1A986;font-size:0.72rem;font-weight:900;text-transform:uppercase;letter-spacing:0.08em;">
+                        Dimension
+                    </div>
+                    <div style="margin:7px 0;color:#0B2B46;font-size:1.05rem;font-weight:900;">{title}</div>
+                    <div style="color:#6D7885;font-size:0.86rem;line-height:1.5;">{description}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    if not findings.empty:
+        impacted_details = (
+            findings.merge(portfolio[["loan_id", "product_type", "sector", "country", "ead"]], on="loan_id", how="left")
+            .groupby(["loan_id", "product_type", "sector", "country", "ead"], as_index=False)
+            .agg(
+                anomaly_count=("check_code", "count"),
+                anomaly_types=("description", lambda values: "; ".join(sorted(set(values)))),
+            )
+            .sort_values(["anomaly_count", "ead"], ascending=[False, False])
+        )
+        with st.expander("Afficher les expositions affectees", expanded=False):
+            st.dataframe(impacted_details, width="stretch", hide_index=True)
 
 
 def render_contact_block() -> None:
