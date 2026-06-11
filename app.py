@@ -22,9 +22,15 @@ from modules.business_checks import (
     summarize_business_consistency,
 )
 from modules.committee_summary import build_docx_bytes, generate_committee_summary
-from modules.data_quality import missing_required_columns
-from modules.data_quality import run_data_quality_checks, summarize_quality_findings
-from modules.data_quality import build_quality_dashboard_metrics, build_quality_dimension_summary
+from modules.data_quality import (
+    build_raw_column_profile,
+    build_raw_quality_dimension_summary,
+    build_raw_quality_metrics,
+    missing_required_columns,
+    run_data_quality_checks,
+    run_raw_data_quality_tests,
+    summarize_quality_findings,
+)
 from modules.demo_config import APP_NAME, DEMO_DISCLAIMER_FR, EXPORT_FILE_PREFIX
 from modules.ecl_calculator import calculate_ecl
 from modules.overlay_engine import (
@@ -911,8 +917,10 @@ def main() -> None:
     try:
         findings = run_data_quality_checks(portfolio)
         dq_summary = summarize_quality_findings(findings)
-        quality_metrics = build_quality_dashboard_metrics(portfolio, findings)
-        quality_dimensions = build_quality_dimension_summary(portfolio, findings)
+        raw_quality_tests = run_raw_data_quality_tests(portfolio)
+        raw_quality_metrics = build_raw_quality_metrics(portfolio, raw_quality_tests)
+        raw_quality_dimensions = build_raw_quality_dimension_summary(raw_quality_tests)
+        raw_column_profile = build_raw_column_profile(portfolio)
         staged = assign_stage(portfolio)
         ecl_portfolio = calculate_ecl(staged)
         ecl_portfolio = build_review_flags(ecl_portfolio, findings)
@@ -1021,12 +1029,14 @@ def main() -> None:
         render_portfolio_dashboard(portfolio, metrics)
 
     elif selected_page == "Data Quality":
-        render_data_quality_dashboard(
+        render_raw_data_quality_dashboard(
             portfolio,
             findings,
             dq_summary,
-            quality_metrics,
-            quality_dimensions,
+            raw_quality_tests,
+            raw_quality_metrics,
+            raw_quality_dimensions,
+            raw_column_profile,
         )
 
     elif selected_page == "Business Consistency":
@@ -1766,6 +1776,213 @@ def render_data_quality_dashboard(
             .sort_values(["anomaly_count", "ead"], ascending=[False, False])
         )
         with st.expander("Afficher les expositions affectees", expanded=False):
+            st.dataframe(impacted_details, width="stretch", hide_index=True)
+
+
+def render_raw_data_quality_dashboard(
+    portfolio: pd.DataFrame,
+    findings: pd.DataFrame,
+    findings_summary: pd.DataFrame,
+    raw_tests: pd.DataFrame,
+    raw_metrics: dict[str, float | int],
+    dimension_summary: pd.DataFrame,
+    column_profile: pd.DataFrame,
+) -> None:
+    """Render raw-dataset controls and BCBS 239-inspired quality statistics."""
+    st.subheader("Data Quality - controles de la base source")
+    st.write(
+        "Les indicateurs proviennent de tests executes directement sur le portefeuille brut. "
+        "Chaque controle dispose d'une population, d'un nombre d'exceptions, d'un seuil et d'un statut."
+    )
+    st.caption(
+        "Lecture inspiree de BCBS 239 : completude, unicite, validite, coherence, exactitude et integrite. "
+        "La ponctualite reste non evaluee faute de dates de reference et de chargement."
+    )
+
+    kpi_cols = st.columns(4)
+    with kpi_cols[0]:
+        render_kpi_card(
+            "Base controlee",
+            f"{int(raw_metrics['row_count']):,}".replace(",", " "),
+            f"{int(raw_metrics['column_count'])} champs bruts",
+        )
+    with kpi_cols[1]:
+        render_kpi_card(
+            "Tests executes",
+            str(int(raw_metrics["test_count"])),
+            f"{int(raw_metrics['passed_test_count'])} controles conformes",
+        )
+    with kpi_cols[2]:
+        render_kpi_card(
+            "Taux de conformite",
+            f"{float(raw_metrics['test_pass_rate']):.1%}",
+            "Part des tests respectant leur seuil",
+        )
+    with kpi_cols[3]:
+        render_kpi_card(
+            "Echecs critiques",
+            str(int(raw_metrics["critical_failed_test_count"])),
+            f"{int(raw_metrics['failed_test_count'])} test(s) en echec",
+        )
+
+    st.markdown("#### Lecture par dimension BCBS 239")
+    evaluated_dimensions = dimension_summary.loc[dimension_summary["score"].notna()].copy()
+    dimension_figure = px.bar(
+        evaluated_dimensions.sort_values("score"),
+        x="score",
+        y="dimension",
+        orientation="h",
+        color="status",
+        color_discrete_map={
+            "Maitrise": "#14664A",
+            "A surveiller": "#F1A986",
+            "Revue requise": "#B44B4B",
+        },
+        text="score",
+        custom_data=["test_count", "failed_test_count", "exception_count"],
+        range_x=[0, 100],
+    )
+    dimension_figure.update_traces(
+        texttemplate="%{text:.2f}%",
+        textposition="inside",
+        hovertemplate=(
+            "<b>%{y}</b><br>Score : %{x:.2f}%"
+            "<br>Tests : %{customdata[0]}"
+            "<br>Tests en echec : %{customdata[1]}"
+            "<br>Exceptions : %{customdata[2]}<extra></extra>"
+        ),
+    )
+    dimension_figure.update_layout(
+        height=390,
+        xaxis_title="Taux de conformite des observations controlees",
+        yaxis_title="",
+        legend_title_text="",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#0B2B46"),
+        margin=dict(l=10, r=20, t=25, b=35),
+    )
+    st.plotly_chart(dimension_figure, width="stretch")
+    st.info(
+        "Ponctualite : non evaluee. Une analyse BCBS 239 complete necessite une date de reference, "
+        "une date de chargement, les cut-offs attendus et les delais de production."
+    )
+
+    st.markdown("#### Catalogue des tests sur la base brute")
+    test_view = raw_tests.copy()
+    test_view["Taux d'exception"] = test_view["exception_rate"].map(
+        lambda value: "Non evalue" if pd.isna(value) else f"{value:.2%}"
+    )
+    test_view["Seuil"] = test_view["threshold"].map(
+        lambda value: "-" if pd.isna(value) else f"{value:.2%}"
+    )
+    test_view = test_view.rename(
+        columns={
+            "dimension": "Dimension",
+            "control": "Controle",
+            "field": "Champ",
+            "severity": "Criticite",
+            "population_count": "Population",
+            "exception_count": "Exceptions",
+            "status": "Statut",
+            "recommendation": "Action recommandee",
+        }
+    )
+    st.dataframe(
+        test_view[
+            [
+                "Dimension",
+                "Controle",
+                "Champ",
+                "Criticite",
+                "Population",
+                "Exceptions",
+                "Taux d'exception",
+                "Seuil",
+                "Statut",
+                "Action recommandee",
+            ]
+        ],
+        width="stretch",
+        hide_index=True,
+    )
+
+    failed_tests = raw_tests.loc[raw_tests["status"].eq("Fail")].copy()
+    st.markdown("#### Statistiques usuelles de qualite")
+    chart_left, chart_right = st.columns(2)
+    with chart_left:
+        if failed_tests.empty:
+            st.success("Tous les controles evaluables respectent leur seuil.")
+        else:
+            exception_chart = failed_tests.sort_values("exception_rate")
+            exception_figure = px.bar(
+                exception_chart,
+                x="exception_rate",
+                y="control",
+                orientation="h",
+                color="severity",
+                color_discrete_map={"Critical": "#B44B4B", "Warning": "#F1A986"},
+                text="exception_count",
+                title="Taux d'exception des tests en echec",
+            )
+            exception_figure.update_layout(
+                height=max(360, 38 * len(exception_chart)),
+                xaxis_tickformat=".1%",
+                xaxis_title="Taux d'exception",
+                yaxis_title="",
+                legend_title_text="",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(exception_figure, width="stretch")
+
+    with chart_right:
+        missing_profile = column_profile.loc[column_profile["missing_count"].gt(0)].sort_values("missing_rate")
+        if missing_profile.empty:
+            st.success("Aucune valeur manquante sur les champs de la base.")
+        else:
+            missing_figure = px.bar(
+                missing_profile,
+                x="missing_rate",
+                y="field",
+                orientation="h",
+                text="missing_count",
+                title="Completude par champ",
+                color_discrete_sequence=["#0B2B46"],
+            )
+            missing_figure.update_layout(
+                height=max(360, 38 * len(missing_profile)),
+                xaxis_tickformat=".1%",
+                xaxis_title="Taux de valeurs manquantes",
+                yaxis_title="",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(missing_figure, width="stretch")
+
+    with st.expander("Profil statistique des champs bruts", expanded=False):
+        profile_view = column_profile.copy()
+        profile_view["missing_rate"] = profile_view["missing_rate"].map(lambda value: f"{value:.2%}")
+        profile_view["distinct_rate"] = profile_view["distinct_rate"].map(lambda value: f"{value:.2%}")
+        st.dataframe(profile_view, width="stretch", hide_index=True)
+
+    with st.expander("Anomalies detaillees par exposition", expanded=False):
+        if findings.empty:
+            st.success("Aucune anomalie ligne a ligne detectee.")
+        else:
+            impacted_details = (
+                findings.merge(
+                    portfolio[["loan_id", "product_type", "sector", "country", "ead"]],
+                    on="loan_id",
+                    how="left",
+                )
+                .groupby(["loan_id", "product_type", "sector", "country", "ead"], as_index=False)
+                .agg(
+                    anomaly_count=("check_code", "count"),
+                    anomaly_types=("description", lambda values: "; ".join(sorted(set(values)))),
+                )
+                .sort_values(["anomaly_count", "ead"], ascending=[False, False])
+            )
             st.dataframe(impacted_details, width="stretch", hide_index=True)
 
 
