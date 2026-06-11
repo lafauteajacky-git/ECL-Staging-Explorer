@@ -436,6 +436,21 @@ def apply_auria_theme() -> None:
             font-weight: 900;
         }
 
+        .overlay-rate-info {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 15px;
+            height: 15px;
+            margin-left: 5px;
+            border: 1px solid rgba(255, 255, 255, 0.72);
+            border-radius: 50%;
+            color: #ffffff;
+            font-size: 0.62rem;
+            line-height: 1;
+            cursor: help;
+        }
+
         .overlay-rule-label {
             margin-bottom: 4px;
             color: var(--auria-peach);
@@ -3606,13 +3621,21 @@ def render_overlay_rule_cards(overlay_parameters: pd.DataFrame) -> None:
             "comment",
             str(overlay.get("justification", "Justification métier à documenter.")),
         )
+        rate = float(overlay.get("rate", 0))
+        rate_tooltip = escape(
+            f"Taux de {rate:.0%} appliqué à l'ECL avant overlay des expositions "
+            f"entrant dans le périmètre de {overlay_name}.",
+            quote=True,
+        )
         cards.append(
             dedent(
                 f"""
                 <article class="overlay-rule-card">
                     <div class="overlay-rule-heading">
                         <div class="overlay-rule-name">{overlay_name}</div>
-                        <div class="overlay-rule-rate">{float(overlay.get("rate", 0)):.0%}</div>
+                        <div class="overlay-rule-rate" title="{rate_tooltip}">
+                            {rate:.0%}<span class="overlay-rate-info" title="{rate_tooltip}">i</span>
+                        </div>
                     </div>
                     <div class="overlay-rule-label">Périmètre concerné</div>
                     <div class="overlay-rule-scope">{scope}</div>
@@ -3680,9 +3703,6 @@ def render_management_overlays(
         ],
     )
 
-    st.write("Synthese des overlays")
-    st.dataframe(overlay_summary, width="stretch")
-
     stage_filter = st.multiselect("Filtrer par stage", sorted(overlay_results["stage"].dropna().unique()))
     product_filter = st.multiselect("Filtrer par produit", sorted(overlay_results["product_type"].dropna().unique()))
     sector_filter = st.multiselect("Filtrer par secteur", sorted(overlay_results["sector"].dropna().unique()))
@@ -3703,7 +3723,7 @@ def render_management_overlays(
             px.bar(overlay_summary, x="overlay_type", y="overlay_amount", title="Montant d'overlay par type", text_auto=".2s"),
             width="stretch",
         )
-        by_stage = overlay_results.groupby("stage", as_index=False)["overlay_amount"].sum()
+        by_stage = filtered.groupby("stage", as_index=False)["overlay_amount"].sum()
         st.plotly_chart(px.bar(by_stage, x="stage", y="overlay_amount", title="Montant d'overlay par stage", text_auto=".2s"), width="stretch")
     with col_right:
         waterfall_fig = go.Figure(
@@ -3718,31 +3738,9 @@ def render_management_overlays(
             waterfall_fig,
             width="stretch",
         )
-        top_impacted = overlay_results.sort_values("overlay_amount", ascending=False).head(10)
+        top_impacted = filtered.sort_values("overlay_amount", ascending=False).head(10)
         st.write("Top 10 expositions les plus impactees")
         st.dataframe(top_impacted[["loan_id", "client_id", "stage", "product_type", "sector", "ecl_before_overlay", "overlay_amount", "ecl_after_overlay", "overlay_names"]], width="stretch")
-
-    st.write("Resultats ligne a ligne")
-    st.dataframe(
-        filtered[
-            [
-                "loan_id",
-                "client_id",
-                "stage",
-                "product_type",
-                "sector",
-                "country",
-                "ecl_before_overlay",
-                "overlay_amount",
-                "ecl_after_overlay",
-                "overlay_applied",
-                "overlay_names",
-                "overlay_types",
-                "overlay_justifications",
-            ]
-        ],
-        width="stretch",
-    )
 
 
 def render_audit_trail(audit_trail: dict[str, pd.DataFrame]) -> None:
