@@ -1860,6 +1860,18 @@ def render_transition_heatmap(
         height=max(430, 38 * len(matrix.index)),
         xaxis_title=x_title,
         yaxis_title=y_title,
+        xaxis=dict(
+            type="category",
+            categoryorder="array",
+            categoryarray=list(matrix.columns),
+            side="bottom",
+        ),
+        yaxis=dict(
+            type="category",
+            categoryorder="array",
+            categoryarray=list(matrix.index),
+            autorange="reversed",
+        ),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=30, r=20, t=65, b=45),
