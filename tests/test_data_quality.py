@@ -1,6 +1,8 @@
 import pandas as pd
 
 from modules.data_quality import (
+    build_quality_dashboard_metrics,
+    build_quality_dimension_summary,
     calculate_quality_score,
     missing_required_columns,
     run_data_quality_checks,
@@ -85,3 +87,50 @@ def test_detects_missing_required_columns():
     assert "client_id" in missing
     assert "pd_12m" in missing
     assert "loan_id" not in missing
+
+
+def test_builds_bcbs_inspired_dimension_summary():
+    portfolio = pd.DataFrame(
+        {
+            "loan_id": ["LN-1", "LN-2"],
+            "ead": [100, 200],
+        }
+    )
+    findings = pd.DataFrame(
+        [
+            {"loan_id": "LN-1", "check_code": "MISSING_PD", "description": "PD manquante"},
+            {
+                "loan_id": "LN-2",
+                "check_code": "DEFAULT_DPD_INCONSISTENCY",
+                "description": "Defaut incoherent",
+            },
+        ]
+    )
+
+    summary = build_quality_dimension_summary(portfolio, findings)
+
+    assert set(["Completude", "Validite", "Coherence"]).issubset(set(summary["dimension"]))
+    assert "Fraicheur / ponctualite" in set(summary["dimension"])
+    assert summary.loc[summary["dimension"].eq("Fraicheur / ponctualite"), "status"].iloc[0] == "Non evalue"
+
+
+def test_builds_quality_dashboard_metrics_with_ead_materiality():
+    portfolio = pd.DataFrame(
+        {
+            "loan_id": ["LN-1", "LN-2"],
+            "ead": [100, 300],
+        }
+    )
+    findings = pd.DataFrame(
+        [
+            {"loan_id": "LN-1", "check_code": "MISSING_PD", "description": "PD manquante"},
+        ]
+    )
+
+    metrics = build_quality_dashboard_metrics(portfolio, findings)
+
+    assert metrics["impacted_exposure_count"] == 1
+    assert metrics["impacted_exposure_rate"] == 0.5
+    assert metrics["critical_issue_count"] == 1
+    assert metrics["impacted_ead"] == 100
+    assert metrics["impacted_ead_rate"] == 0.25

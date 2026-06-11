@@ -5,6 +5,24 @@ from __future__ import annotations
 import pandas as pd
 
 
+DATA_QUALITY_DIMENSIONS = {
+    "MISSING_RATING": "Completude",
+    "MISSING_PD": "Completude",
+    "MISSING_LGD": "Completude",
+    "INVALID_EAD": "Validite",
+    "NEGATIVE_MATURITY": "Validite",
+    "NEGATIVE_DPD": "Validite",
+    "DEFAULT_DPD_INCONSISTENCY": "Coherence",
+    "LTV_WITHOUT_COLLATERAL": "Coherence",
+}
+
+CRITICAL_QUALITY_CODES = {
+    "MISSING_PD",
+    "MISSING_LGD",
+    "INVALID_EAD",
+    "DEFAULT_DPD_INCONSISTENCY",
+}
+
 REQUIRED_PORTFOLIO_COLUMNS = [
     "loan_id",
     "client_id",
@@ -98,3 +116,92 @@ def summarize_quality_findings(findings: pd.DataFrame) -> pd.DataFrame:
         .sort_values("issue_count", ascending=False)
         .reset_index(drop=True)
     )
+
+
+def build_quality_dimension_summary(portfolio: pd.DataFrame, findings: pd.DataFrame) -> pd.DataFrame:
+    """Summarize existing checks by BCBS 239-inspired data quality dimension."""
+    check_counts = pd.Series(DATA_QUALITY_DIMENSIONS).value_counts()
+    if findings.empty:
+        issue_counts = pd.Series(dtype="int64")
+    else:
+        issue_counts = (
+            findings.assign(dimension=findings["check_code"].map(DATA_QUALITY_DIMENSIONS))
+            .dropna(subset=["dimension"])
+            .groupby("dimension")
+            .size()
+        )
+
+    rows = []
+    exposure_count = len(portfolio)
+    for dimension in ["Completude", "Validite", "Coherence"]:
+        control_count = int(check_counts.get(dimension, 0))
+        possible_checks = exposure_count * control_count
+        issue_count = int(issue_counts.get(dimension, 0))
+        score = 100 * (1 - issue_count / possible_checks) if possible_checks else 100.0
+        rows.append(
+            {
+                "dimension": dimension,
+                "score": round(max(0.0, score), 2),
+                "issue_count": issue_count,
+                "control_count": control_count,
+                "status": quality_status(score),
+            }
+        )
+
+    rows.extend(
+        [
+            {
+                "dimension": "Exactitude et integrite",
+                "score": calculate_quality_score(portfolio, findings),
+                "issue_count": len(findings),
+                "control_count": len(DATA_QUALITY_DIMENSIONS),
+                "status": quality_status(calculate_quality_score(portfolio, findings)),
+            },
+            {
+                "dimension": "Fraicheur / ponctualite",
+                "score": None,
+                "issue_count": None,
+                "control_count": 0,
+                "status": "Non evalue",
+            },
+        ]
+    )
+    return pd.DataFrame(rows)
+
+
+def build_quality_dashboard_metrics(portfolio: pd.DataFrame, findings: pd.DataFrame) -> dict[str, float | int]:
+    """Build executive data quality KPIs for the Streamlit dashboard."""
+    exposure_count = len(portfolio)
+    impacted_loans = findings["loan_id"].nunique() if not findings.empty else 0
+    critical_findings = (
+        findings.loc[findings["check_code"].isin(CRITICAL_QUALITY_CODES)]
+        if not findings.empty
+        else findings
+    )
+    critical_loans = critical_findings["loan_id"].nunique() if not critical_findings.empty else 0
+    impacted_ids = set(findings["loan_id"]) if not findings.empty else set()
+    impacted_ead = pd.to_numeric(
+        portfolio.loc[portfolio["loan_id"].isin(impacted_ids), "ead"],
+        errors="coerce",
+    ).fillna(0).clip(lower=0).sum()
+    total_ead = pd.to_numeric(portfolio["ead"], errors="coerce").fillna(0).clip(lower=0).sum()
+
+    return {
+        "quality_score": calculate_quality_score(portfolio, findings),
+        "issue_count": int(len(findings)),
+        "impacted_exposure_count": int(impacted_loans),
+        "impacted_exposure_rate": impacted_loans / exposure_count if exposure_count else 0.0,
+        "critical_issue_count": int(len(critical_findings)),
+        "critical_exposure_count": int(critical_loans),
+        "impacted_ead": float(impacted_ead),
+        "impacted_ead_rate": float(impacted_ead / total_ead) if total_ead else 0.0,
+    }
+
+
+def quality_status(score: float) -> str:
+    """Return a simple committee-friendly status for a quality score."""
+    if score >= 99:
+        return "Maitrise"
+    if score >= 97:
+        return "A surveiller"
+    return "Revue requise"
