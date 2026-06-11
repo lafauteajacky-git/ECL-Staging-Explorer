@@ -42,6 +42,7 @@ pytest
 - `modules/scenario_engine.py` : scenarios macroeconomiques pedagogiques Baseline, Downside et Upside.
 - `modules/overlay_engine.py` : overlays manageriaux pedagogiques appliques a l'ECL avant overlay.
 - `modules/business_checks.py` : controles de coherence metier, storyline de demo et discussion points.
+- `modules/migration_analysis.py` : matrices de transition, indicateurs de migration et cliff effects.
 - `modules/audit_trail.py` : audit trail detaille du run et generation du run_id.
 - `modules/committee_summary.py` : note de synthese comite provisionnement.
 - `modules/demo_config.py` : nom de l'application, disclaimer demo safe et prefixe d'export.

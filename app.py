@@ -6,6 +6,7 @@ from datetime import datetime
 from html import escape
 from textwrap import dedent
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -34,6 +35,14 @@ from modules.data_quality import (
 )
 from modules.demo_config import APP_NAME, DEMO_DISCLAIMER_FR, EXPORT_FILE_PREFIX
 from modules.ecl_calculator import calculate_ecl
+from modules.migration_analysis import (
+    build_average_migration_by_dimension,
+    build_migration_breakdown,
+    build_rating_transition_matrix,
+    build_stage_transition_matrix,
+    build_top_strong_migrations,
+    calculate_rating_migration_metrics,
+)
 from modules.overlay_engine import (
     PREDEFINED_OVERLAYS,
     apply_overlays,
@@ -1285,11 +1294,7 @@ def main() -> None:
         render_business_consistency(business_summary, business_alerts)
 
     elif selected_page == "Staging":
-        st.subheader("Affectation des stages")
-        stage_counts = staged.groupby(["stage", "stage_reason"], as_index=False).size().rename(columns={"size": "count"})
-        fig_stage = px.bar(stage_counts, x="stage", y="count", color="stage_reason", title="Expositions par stage et raison")
-        st.plotly_chart(fig_stage, width="stretch")
-        st.dataframe(staged[["loan_id", "client_id", "initial_stage", "stage", "stage_reason", "stage_comment", "days_past_due", "origination_rating", "current_rating"]], width="stretch")
+        render_staging_migration_analysis(staged)
 
     elif selected_page == "ECL Calculation":
         st.subheader("Calcul ECL")
@@ -1817,6 +1822,296 @@ def render_portfolio_dashboard(portfolio: pd.DataFrame, metrics: dict[str, float
         )
         maturity_distribution.update_layout(height=360, yaxis_title="Nombre d'expositions")
         st.plotly_chart(maturity_distribution, width="stretch")
+
+
+def render_transition_heatmap(
+    matrix: pd.DataFrame,
+    title: str,
+    x_title: str,
+    y_title: str,
+) -> None:
+    """Render an interactive percentage transition matrix."""
+    values = matrix.to_numpy(dtype=float)
+    text = np.vectorize(lambda value: f"{value:.1%}")(values)
+    figure = go.Figure(
+        data=go.Heatmap(
+            z=values,
+            x=list(matrix.columns),
+            y=list(matrix.index),
+            text=text,
+            texttemplate="%{text}",
+            colorscale=[
+                [0.0, "#F8F4EF"],
+                [0.35, "#F7C6AE"],
+                [0.70, "#F1A986"],
+                [1.0, "#0B2B46"],
+            ],
+            zmin=0,
+            zmax=max(0.01, float(np.nanmax(values))),
+            colorbar=dict(title="%"),
+            hovertemplate=(
+                f"{y_title}: %{{y}}<br>{x_title}: %{{x}}"
+                "<br>Part: %{z:.2%}<extra></extra>"
+            ),
+        )
+    )
+    figure.update_layout(
+        title=title,
+        height=max(430, 38 * len(matrix.index)),
+        xaxis_title=x_title,
+        yaxis_title=y_title,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=30, r=20, t=65, b=45),
+    )
+    st.plotly_chart(
+        figure,
+        width="stretch",
+        config={"scrollZoom": True, "displaylogo": False},
+    )
+
+
+def render_staging_migration_analysis(staged: pd.DataFrame) -> None:
+    """Render rating and stage transition analytics."""
+    st.subheader("Staging et analyse des migrations")
+    st.write(
+        "Analyse des mouvements entre l'octroi et la date courante, en nombre d'expositions "
+        "ou en EAD. Une hausse de note correspond a une deterioration sur l'echelle synthetique 1 a 10."
+    )
+
+    metrics = calculate_rating_migration_metrics(staged)
+    headline_cols = st.columns(5)
+    with headline_cols[0]:
+        render_kpi_card(
+            "Stabilite",
+            f"{metrics['stability_rate']:.1%}",
+            f"{metrics['stability_ead_rate']:.1%} de l'EAD stable",
+        )
+    with headline_cols[1]:
+        render_kpi_card(
+            "Degradation",
+            f"{metrics['degradation_rate']:.1%}",
+            f"{metrics['degradation_ead_rate']:.1%} de l'EAD",
+        )
+    with headline_cols[2]:
+        render_kpi_card(
+            "Amelioration",
+            f"{metrics['improvement_rate']:.1%}",
+            f"{metrics['improvement_ead_rate']:.1%} de l'EAD",
+        )
+    with headline_cols[3]:
+        render_kpi_card(
+            "Migration nette",
+            f"{metrics['net_migration_rate']:+.1%}",
+            "Degradation moins amelioration",
+        )
+    with headline_cols[4]:
+        render_kpi_card(
+            "Migration moyenne",
+            f"{metrics['average_notch_migration']:+.2f}",
+            "Crans par exposition",
+        )
+
+    risk_cols = st.columns(4)
+    with risk_cols[0]:
+        render_kpi_card(
+            "Degradation 1 cran",
+            f"{metrics['one_notch_degradation_rate']:.1%}",
+            "Migration moderee",
+        )
+    with risk_cols[1]:
+        render_kpi_card(
+            "Degradation >= 2",
+            f"{metrics['two_plus_degradation_rate']:.1%}",
+            "Signal de deterioration",
+        )
+    with risk_cols[2]:
+        render_kpi_card(
+            "Vers grades sensibles",
+            f"{metrics['worst_grade_degradation_rate']:.1%}",
+            "Notes courantes 8 a 10",
+        )
+    with risk_cols[3]:
+        render_kpi_card(
+            "Vers defaut",
+            f"{metrics['default_migration_rate']:.1%}",
+            f"{metrics['default_migration_ead_rate']:.1%} de l'EAD",
+        )
+
+    measure_label = st.radio(
+        "Expression des matrices",
+        options=["% des effectifs", "% de l'EAD"],
+        index=0,
+        horizontal=True,
+        key="staging_matrix_measure",
+    )
+    measure = "ead" if measure_label == "% de l'EAD" else "count"
+
+    st.markdown("#### Matrice de transition des ratings")
+    st.caption(
+        "La colonne Defaut regroupe les expositions avec default flag, DPD >= 90 jours "
+        "ou classement final en Stage 3."
+    )
+    rating_matrix = build_rating_transition_matrix(staged, measure=measure)
+    render_transition_heatmap(
+        rating_matrix,
+        f"Note a l'octroi vers note courante - {measure_label}",
+        "Note courante",
+        "Note a l'octroi",
+    )
+
+    st.markdown("#### Matrice de migration des stages")
+    available_reasons = sorted(staged["stage_reason"].dropna().unique().tolist())
+    selected_reasons = st.multiselect(
+        "Zoom sur les motifs de staging",
+        options=available_reasons,
+        default=available_reasons,
+        help="Retirez des motifs pour isoler une population et recalculer dynamiquement la matrice.",
+        key="staging_reason_filter",
+    )
+    stage_matrix = build_stage_transition_matrix(
+        staged,
+        measure=measure,
+        stage_reasons=selected_reasons,
+    )
+    render_transition_heatmap(
+        stage_matrix,
+        f"Stage initial vers stage recalcule - {measure_label}",
+        "Stage recalcule",
+        "Stage initial",
+    )
+
+    filtered_stages = staged.loc[staged["stage_reason"].isin(selected_reasons)].copy()
+    reason_summary = (
+        filtered_stages.groupby(["stage", "stage_reason"], as_index=False)
+        .agg(expositions=("loan_id", "count"), ead=("ead", "sum"))
+    )
+    if not reason_summary.empty:
+        reason_value = "ead" if measure == "ead" else "expositions"
+        reason_chart = px.bar(
+            reason_summary,
+            x="stage",
+            y=reason_value,
+            color="stage_reason",
+            title="Composition des stages par motif declencheur",
+            color_discrete_sequence=["#0B2B46", "#F1A986", "#6D7885", "#14664A", "#8298AA"],
+        )
+        reason_chart.update_layout(
+            height=390,
+            xaxis_title="",
+            yaxis_title="EAD" if measure == "ead" else "Nombre d'expositions",
+            legend_title_text="Motif",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(reason_chart, width="stretch")
+
+    st.markdown("#### Nature des migrations de rating")
+    breakdown = build_migration_breakdown(staged)
+    breakdown_long = breakdown.melt(
+        id_vars=["rating_migration_type"],
+        value_vars=["exposure_share", "ead_share"],
+        var_name="measure",
+        value_name="share",
+    )
+    breakdown_long["measure"] = breakdown_long["measure"].map(
+        {"exposure_share": "% des effectifs", "ead_share": "% de l'EAD"}
+    )
+    breakdown_figure = px.bar(
+        breakdown_long,
+        x="rating_migration_type",
+        y="share",
+        color="measure",
+        barmode="group",
+        text_auto=".1%",
+        title="Repartition des migrations",
+        color_discrete_map={"% des effectifs": "#0B2B46", "% de l'EAD": "#F1A986"},
+    )
+    breakdown_figure.update_layout(
+        height=420,
+        xaxis_title="",
+        yaxis_title="Part du portefeuille",
+        yaxis_tickformat=".0%",
+        legend_title_text="",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+    st.plotly_chart(breakdown_figure, width="stretch")
+
+    product_migration = build_average_migration_by_dimension(staged, "product_type")
+    product_long = product_migration.melt(
+        id_vars=["product_type"],
+        value_vars=["average_notch_migration", "ead_weighted_notch_migration"],
+        var_name="measure",
+        value_name="migration",
+    )
+    product_long["measure"] = product_long["measure"].map(
+        {
+            "average_notch_migration": "Moyenne simple",
+            "ead_weighted_notch_migration": "Moyenne ponderee par EAD",
+        }
+    )
+    product_figure = px.bar(
+        product_long,
+        x="product_type",
+        y="migration",
+        color="measure",
+        barmode="group",
+        text_auto="+.2f",
+        title="Migration moyenne par produit",
+        color_discrete_map={"Moyenne simple": "#0B2B46", "Moyenne ponderee par EAD": "#F1A986"},
+    )
+    product_figure.add_hline(y=0, line_color="#6D7885", line_width=1)
+    product_figure.update_layout(
+        height=410,
+        xaxis_title="",
+        yaxis_title="Migration moyenne en crans",
+        legend_title_text="",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+    st.plotly_chart(product_figure, width="stretch")
+    st.caption(
+        "Une valeur positive indique une deterioration moyenne du portefeuille ; "
+        "une valeur negative indique une amelioration."
+    )
+
+    st.markdown("#### Migrations fortes et cliff effects")
+    st.caption(
+        "Top 10 des deteriorations d'au moins deux crans ou migrations vers le defaut, "
+        "classees par severite puis par EAD."
+    )
+    top_migrations = build_top_strong_migrations(staged)
+    if top_migrations.empty:
+        st.success("Aucune migration forte detectee.")
+    else:
+        display_top = top_migrations.copy()
+        display_top["ead"] = display_top["ead"].map(format_currency)
+        for column in ["pd_12m", "pd_lifetime", "lgd"]:
+            display_top[column] = display_top[column].map(
+                lambda value: "-" if pd.isna(value) else f"{value:.2%}"
+            )
+        st.dataframe(display_top, width="stretch", hide_index=True)
+
+    with st.expander("Consulter les resultats de staging ligne a ligne", expanded=False):
+        st.dataframe(
+            staged[
+                [
+                    "loan_id",
+                    "client_id",
+                    "initial_stage",
+                    "stage",
+                    "stage_reason",
+                    "stage_comment",
+                    "days_past_due",
+                    "origination_rating",
+                    "current_rating",
+                    "ead",
+                ]
+            ],
+            width="stretch",
+            hide_index=True,
+        )
 
 
 def render_data_quality_dashboard(
