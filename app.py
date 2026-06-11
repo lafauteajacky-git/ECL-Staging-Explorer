@@ -229,6 +229,79 @@ def apply_auria_theme() -> None:
             color: #ffffff;
         }
 
+        .storyline-section {
+            margin: 30px 0 10px;
+            padding: 28px;
+            border: 1px solid var(--auria-line);
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.70);
+            box-shadow: var(--auria-shadow);
+        }
+
+        .storyline-kicker {
+            color: var(--auria-peach);
+            font-size: 0.76rem;
+            font-weight: 950;
+            letter-spacing: 0.10em;
+            text-transform: uppercase;
+        }
+
+        .storyline-heading {
+            margin: 7px 0 8px;
+            color: var(--auria-navy);
+            font-size: 1.65rem;
+        }
+
+        .storyline-intro {
+            max-width: 760px;
+            margin: 0 0 22px;
+            color: var(--auria-grey);
+            line-height: 1.55;
+        }
+
+        .storyline-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .storyline-card {
+            display: grid;
+            grid-template-columns: 42px minmax(0, 1fr);
+            gap: 12px;
+            min-height: 118px;
+            padding: 17px;
+            border: 1px solid rgba(11, 43, 70, 0.12);
+            border-radius: 12px;
+            background: #ffffff;
+        }
+
+        .storyline-number {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: var(--auria-navy);
+            color: #ffffff;
+            font-size: 0.76rem;
+            font-weight: 900;
+        }
+
+        .storyline-title {
+            margin: 2px 0 7px;
+            color: var(--auria-navy);
+            font-size: 0.96rem;
+            font-weight: 900;
+        }
+
+        .storyline-description {
+            color: var(--auria-grey);
+            font-size: 0.84rem;
+            line-height: 1.45;
+        }
+
         @media (max-width: 1100px) {
             .auria-main-hero-grid {
                 grid-template-columns: minmax(0, 1fr) !important;
@@ -241,11 +314,19 @@ def apply_auria_theme() -> None:
             .portfolio-summary-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
             }
+
+            .storyline-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
         }
 
         @media (max-width: 720px) {
             .portfolio-summary-grid {
                 grid-template-columns: minmax(0, 1fr) !important;
+            }
+
+            .storyline-grid {
+                grid-template-columns: minmax(0, 1fr);
             }
         }
 
@@ -1193,17 +1274,44 @@ def render_home(
     if demo_profile:
         render_portfolio_summary(demo_profile, portfolio, metrics)
 
-    st.write("Demo Storyline")
-    st.dataframe(pd.DataFrame(DEMO_STORYLINE), width="stretch", hide_index=True)
-
-    if metrics:
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("EAD totale", format_currency(metrics["total_ead"]), help="Exposure at Default : exposition utilisee dans le calcul ECL.")
-        col2.metric("ECL totale", format_currency(metrics["total_ecl"]), help="Expected Credit Loss : perte de credit attendue selon les hypotheses du MVP.")
-        col3.metric("Taux de couverture", f"{metrics['coverage_ratio']:.2%}", help="ECL totale divisee par l'EAD totale.")
-        col4.metric("Expositions", f"{metrics['exposure_count']:,}".replace(",", " "))
+    render_demo_storyline()
 
     render_contact_block()
+
+
+def render_demo_storyline() -> None:
+    """Render the demo journey as a styled sequence rather than a data table."""
+    storyline_icons = ["01", "02", "03", "04", "05", "06"]
+    cards = []
+    for icon, item in zip(storyline_icons, DEMO_STORYLINE):
+        cards.append(
+            f"""
+            <article class="storyline-card">
+                <div class="storyline-number">{icon}</div>
+                <div>
+                    <div class="storyline-title">{item["title"]}</div>
+                    <div class="storyline-description">{item["description"]}</div>
+                </div>
+            </article>
+            """
+        )
+
+    st.markdown(
+        f"""
+        <section class="storyline-section">
+            <div class="storyline-kicker">Parcours de demonstration</div>
+            <h3 class="storyline-heading">De la donnee synthetique a la decision comite</h3>
+            <p class="storyline-intro">
+                Un parcours en six etapes pour illustrer les controles, les calculs,
+                les ajustements et la gouvernance IFRS 9.
+            </p>
+            <div class="storyline-grid">
+                {''.join(cards)}
+            </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_portfolio_summary(
@@ -1224,10 +1332,9 @@ def render_portfolio_summary(
         st.info(f"Profil selectionne : {demo_profile}. {PROFILE_CONTEXT.get(demo_profile, '')}")
         return
 
-    product_count = int(portfolio["product_type"].nunique()) if "product_type" in portfolio else 0
-    sector_count = int(portfolio["sector"].nunique()) if "sector" in portfolio else 0
-    country_count = int(portfolio["country"].nunique()) if "country" in portfolio else 0
     total_ead = float(pd.to_numeric(portfolio.get("ead"), errors="coerce").fillna(0).sum())
+    total_ecl = float(metrics.get("total_ecl", 0.0)) if metrics else 0.0
+    coverage_ratio = float(metrics.get("coverage_ratio", 0.0)) if metrics else 0.0
     default_rate = float(portfolio.get("default_flag", pd.Series(False, index=portfolio.index)).fillna(False).mean())
     forbearance_rate = float(
         portfolio.get("forbearance_flag", pd.Series(False, index=portfolio.index)).fillna(False).mean()
@@ -1237,9 +1344,6 @@ def render_portfolio_summary(
     )
     collateral_rate = float(
         portfolio.get("collateral_flag", pd.Series(False, index=portfolio.index)).fillna(False).mean()
-    )
-    average_maturity = float(
-        pd.to_numeric(portfolio.get("residual_maturity_months"), errors="coerce").dropna().mean()
     )
     exposure_label = f"{len(portfolio):,}".replace(",", " ")
     profile_focus = {
@@ -1273,9 +1377,9 @@ def render_portfolio_summary(
                 margin-bottom:20px;
             ">
                 <div><strong>{exposure_label}</strong><br><span>expositions</span></div>
-                <div><strong>{format_compact_currency(total_ead)}</strong><br><span>EAD simulee</span></div>
-                <div><strong>{product_count} / {sector_count} / {country_count}</strong><br><span>produits / secteurs / pays</span></div>
-                <div><strong>{average_maturity:.0f} mois</strong><br><span>maturite moyenne</span></div>
+                <div><strong>{format_compact_currency(total_ead)}</strong><br><span>EAD totale</span></div>
+                <div><strong>{format_compact_currency(total_ecl)}</strong><br><span>ECL totale</span></div>
+                <div><strong>{coverage_ratio:.2%}</strong><br><span>taux de couverture</span></div>
             </div>
             <div class="portfolio-summary-grid" style="
                 display:grid;
