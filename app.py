@@ -364,6 +364,17 @@ def apply_auria_theme() -> None:
             grid-template-columns: repeat(4, minmax(0, 1fr));
         }
 
+        .kpi-grid-four {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .kpi-grid-two {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.16);
+        }
+
         .migration-kpi-item {
             min-width: 0;
             min-height: 92px;
@@ -435,6 +446,12 @@ def apply_auria_theme() -> None:
                 grid-template-columns: repeat(2, minmax(0, 1fr));
                 row-gap: 20px;
             }
+
+            .kpi-grid-four,
+            .kpi-grid-two {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                row-gap: 20px;
+            }
         }
 
         @media (max-width: 720px) {
@@ -448,7 +465,9 @@ def apply_auria_theme() -> None:
 
             .migration-kpi-grid-primary,
             .migration-kpi-grid-secondary,
-            .ecl-kpi-grid {
+            .ecl-kpi-grid,
+            .kpi-grid-four,
+            .kpi-grid-two {
                 grid-template-columns: minmax(0, 1fr);
             }
 
@@ -859,6 +878,49 @@ def render_kpi_card(label: str, value: str, caption: str = "") -> None:
             <div style="color:#6d7885; font-size:0.78rem; min-height: 1rem;">{caption}</div>
         </div>
         """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_kpi_panel(
+    kicker: str,
+    primary_metrics: list[tuple[str, str, str]],
+    secondary_metrics: list[tuple[str, str, str]] | None = None,
+) -> None:
+    """Render compact Auria KPI rows in the same style as the staging view."""
+
+    def metric_markup(metric: tuple[str, str, str]) -> str:
+        label, value, caption = metric
+        return (
+            '<div class="migration-kpi-item">'
+            f'<div class="migration-kpi-label">{label}</div>'
+            f'<div class="migration-kpi-value">{value}</div>'
+            f'<div class="migration-kpi-caption">{caption}</div>'
+            "</div>"
+        )
+
+    primary_class = "kpi-grid-four" if len(primary_metrics) == 4 else "migration-kpi-grid-primary"
+    secondary_markup = ""
+    if secondary_metrics:
+        secondary_class = "kpi-grid-two" if len(secondary_metrics) == 2 else "migration-kpi-grid-secondary"
+        secondary_markup = (
+            f'<div class="migration-kpi-grid {secondary_class}">'
+            f"{''.join(metric_markup(metric) for metric in secondary_metrics)}"
+            "</div>"
+        )
+
+    st.markdown(
+        dedent(
+            f"""
+            <section class="migration-kpi-panel">
+                <div class="migration-kpi-kicker">{kicker}</div>
+                <div class="migration-kpi-grid {primary_class}">
+                    {''.join(metric_markup(metric) for metric in primary_metrics)}
+                </div>
+                {secondary_markup}
+            </section>
+            """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -1823,15 +1885,15 @@ def render_portfolio_dashboard(portfolio: pd.DataFrame, metrics: dict[str, float
     total_ecl = float(metrics["total_ecl"])
     coverage_ratio = float(metrics["coverage_ratio"])
 
-    kpi_cols = st.columns(4)
-    with kpi_cols[0]:
-        render_kpi_card("Expositions", f"{len(display):,}".replace(",", " "), "Contrats synthetiques")
-    with kpi_cols[1]:
-        render_kpi_card("EAD totale", format_compact_currency(total_ead), "Exposure at Default")
-    with kpi_cols[2]:
-        render_kpi_card("ECL totale", format_compact_currency(total_ecl), "Expected Credit Loss")
-    with kpi_cols[3]:
-        render_kpi_card("Taux de couverture", f"{coverage_ratio:.2%}", "ECL totale / EAD totale")
+    render_kpi_panel(
+        "Lecture synthetique du portefeuille",
+        [
+            ("Expositions", f"{len(display):,}".replace(",", " "), "Contrats synthetiques"),
+            ("EAD totale", format_compact_currency(total_ead), "Exposure at Default"),
+            ("ECL totale", format_compact_currency(total_ecl), "Expected Credit Loss"),
+            ("Taux de couverture", f"{coverage_ratio:.2%}", "ECL totale / EAD totale"),
+        ],
+    )
 
     st.markdown("#### Composition du portefeuille")
     product_mix = (
@@ -2690,31 +2752,31 @@ def render_data_quality_dashboard(
         "La ponctualite, la tracabilite des sources et les controles d'agregation ne sont pas encore modelises."
     )
 
-    kpi_cols = st.columns(4)
-    with kpi_cols[0]:
-        render_kpi_card(
-            "Score qualite global",
-            f"{float(quality_metrics['quality_score']):.2f}%",
-            "8 controles automatises",
-        )
-    with kpi_cols[1]:
-        render_kpi_card(
-            "Expositions affectees",
-            f"{int(quality_metrics['impacted_exposure_count']):,}".replace(",", " "),
-            f"{float(quality_metrics['impacted_exposure_rate']):.1%} du portefeuille",
-        )
-    with kpi_cols[2]:
-        render_kpi_card(
-            "Anomalies critiques",
-            str(int(quality_metrics["critical_issue_count"])),
-            f"{int(quality_metrics['critical_exposure_count'])} exposition(s)",
-        )
-    with kpi_cols[3]:
-        render_kpi_card(
-            "EAD affectee",
-            format_compact_currency(float(quality_metrics["impacted_ead"])),
-            f"{float(quality_metrics['impacted_ead_rate']):.1%} de l'EAD",
-        )
+    render_kpi_panel(
+        "Synthese de la qualite des donnees",
+        [
+            (
+                "Score qualite global",
+                f"{float(quality_metrics['quality_score']):.2f}%",
+                "8 controles automatises",
+            ),
+            (
+                "Expositions affectees",
+                f"{int(quality_metrics['impacted_exposure_count']):,}".replace(",", " "),
+                f"{float(quality_metrics['impacted_exposure_rate']):.1%} du portefeuille",
+            ),
+            (
+                "Anomalies critiques",
+                str(int(quality_metrics["critical_issue_count"])),
+                f"{int(quality_metrics['critical_exposure_count'])} exposition(s)",
+            ),
+            (
+                "EAD affectee",
+                format_compact_currency(float(quality_metrics["impacted_ead"])),
+                f"{float(quality_metrics['impacted_ead_rate']):.1%} de l'EAD",
+            ),
+        ],
+    )
 
     st.markdown("#### Evaluation par dimension")
     evaluated_dimensions = dimension_summary.loc[dimension_summary["score"].notna()].copy()
@@ -2886,31 +2948,31 @@ def render_raw_data_quality_dashboard(
         "La ponctualite reste non evaluee faute de dates de reference et de chargement."
     )
 
-    kpi_cols = st.columns(4)
-    with kpi_cols[0]:
-        render_kpi_card(
-            "Base controlee",
-            f"{int(raw_metrics['row_count']):,}".replace(",", " "),
-            f"{int(raw_metrics['column_count'])} champs bruts",
-        )
-    with kpi_cols[1]:
-        render_kpi_card(
-            "Tests executes",
-            str(int(raw_metrics["test_count"])),
-            f"{int(raw_metrics['passed_test_count'])} controles conformes",
-        )
-    with kpi_cols[2]:
-        render_kpi_card(
-            "Taux de conformite",
-            f"{float(raw_metrics['test_pass_rate']):.1%}",
-            "Part des tests respectant leur seuil",
-        )
-    with kpi_cols[3]:
-        render_kpi_card(
-            "Echecs critiques",
-            str(int(raw_metrics["critical_failed_test_count"])),
-            f"{int(raw_metrics['failed_test_count'])} test(s) en echec",
-        )
+    render_kpi_panel(
+        "Controle de la base source",
+        [
+            (
+                "Base controlee",
+                f"{int(raw_metrics['row_count']):,}".replace(",", " "),
+                f"{int(raw_metrics['column_count'])} champs bruts",
+            ),
+            (
+                "Tests executes",
+                str(int(raw_metrics["test_count"])),
+                f"{int(raw_metrics['passed_test_count'])} controles conformes",
+            ),
+            (
+                "Taux de conformite",
+                f"{float(raw_metrics['test_pass_rate']):.1%}",
+                "Part des tests respectant leur seuil",
+            ),
+            (
+                "Echecs critiques",
+                str(int(raw_metrics["critical_failed_test_count"])),
+                f"{int(raw_metrics['failed_test_count'])} test(s) en echec",
+            ),
+        ],
+    )
 
     st.markdown("#### Lecture par dimension BCBS 239")
     evaluated_dimensions = dimension_summary.loc[dimension_summary["score"].notna()].copy()
@@ -3312,39 +3374,51 @@ def render_macro_scenarios(
         st.dataframe(display_params, width="stretch", hide_index=True)
 
     st.markdown("#### Resultats ECL par scenario")
-    kpi_row = st.columns(4)
     scenario_kpis = [
-        ("ECL baseline", scenario_metrics["ecl_baseline"], "Hypothese macroeconomique centrale"),
-        ("ECL downside", scenario_metrics["ecl_downside"], "Impact du scenario de stress"),
-        ("ECL upside", scenario_metrics["ecl_upside"], "Impact du scenario favorable"),
-        ("ECL ponderee", scenario_metrics["ecl_weighted"], "Moyenne selon les ponderations"),
+        (
+            "ECL baseline",
+            format_compact_currency(float(scenario_metrics["ecl_baseline"])),
+            "Hypothese macroeconomique centrale",
+        ),
+        (
+            "ECL downside",
+            format_compact_currency(float(scenario_metrics["ecl_downside"])),
+            "Impact du scenario de stress",
+        ),
+        (
+            "ECL upside",
+            format_compact_currency(float(scenario_metrics["ecl_upside"])),
+            "Impact du scenario favorable",
+        ),
+        (
+            "ECL ponderee",
+            format_compact_currency(float(scenario_metrics["ecl_weighted"])),
+            "Moyenne selon les ponderations",
+        ),
     ]
-    for column, (label, value, caption) in zip(kpi_row, scenario_kpis, strict=False):
-        with column:
-            render_kpi_card(label, format_compact_currency(float(value)), caption)
-
-    st.markdown("#### Sensibilite par rapport au scenario central")
-    impact_row = st.columns(2)
     impact_kpis = [
         (
             "Impact downside vs baseline",
-            scenario_metrics["downside_impact_amount"],
-            scenario_metrics["downside_impact_pct"],
+            format_compact_currency(float(scenario_metrics["downside_impact_amount"])),
+            (
+                f"{'Hausse' if float(scenario_metrics['downside_impact_amount']) >= 0 else 'Baisse'} "
+                f"de {abs(float(scenario_metrics['downside_impact_pct'])):.2%}"
+            ),
         ),
         (
             "Impact ECL ponderee vs baseline",
-            scenario_metrics["weighted_impact_amount"],
-            scenario_metrics["weighted_impact_pct"],
+            format_compact_currency(float(scenario_metrics["weighted_impact_amount"])),
+            (
+                f"{'Hausse' if float(scenario_metrics['weighted_impact_amount']) >= 0 else 'Baisse'} "
+                f"de {abs(float(scenario_metrics['weighted_impact_pct'])):.2%}"
+            ),
         ),
     ]
-    for column, (label, amount, percentage) in zip(impact_row, impact_kpis, strict=False):
-        direction = "hausse" if float(amount) >= 0 else "baisse"
-        with column:
-            render_kpi_card(
-                label,
-                format_compact_currency(float(amount)),
-                f"{direction.capitalize()} de {abs(float(percentage)):.2%}",
-            )
+    render_kpi_panel(
+        "Synthese des scenarios macroeconomiques",
+        scenario_kpis,
+        impact_kpis,
+    )
 
     col1, col2 = st.columns(2)
     with col1:
@@ -3595,11 +3669,31 @@ def render_business_consistency(business_summary: dict[str, float], business_ale
         "Ces controles recherchent des incoherences metier simples entre stage, defaut, DPD, PD, LGD et ECL. "
         "Ils servent a orienter la revue, sans remplacer une validation de modele."
     )
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Score de coherence", f"{business_summary['business_consistency_score']:.1%}")
-    col2.metric("Controles passes", f"{int(business_summary['business_checks_passed']):,}".replace(",", " "))
-    col3.metric("Alertes", int(business_summary["business_alert_count"]))
-    col4.metric("Alertes critiques", int(business_summary["business_critical_alert_count"]))
+    render_kpi_panel(
+        "Lecture synthetique de la coherence metier",
+        [
+            (
+                "Score de coherence",
+                f"{business_summary['business_consistency_score']:.1%}",
+                "Part des controles sans alerte",
+            ),
+            (
+                "Controles passes",
+                f"{int(business_summary['business_checks_passed']):,}".replace(",", " "),
+                "Tests de coherence satisfaits",
+            ),
+            (
+                "Alertes",
+                str(int(business_summary["business_alert_count"])),
+                "Cas necessitant une analyse",
+            ),
+            (
+                "Alertes critiques",
+                str(int(business_summary["business_critical_alert_count"])),
+                "Points a prioriser",
+            ),
+        ],
+    )
     if business_alerts.empty:
         st.success("Aucune alerte de coherence metier detectee.")
     else:
