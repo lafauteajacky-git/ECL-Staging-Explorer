@@ -1407,6 +1407,15 @@ def render_portfolio_summary(
 
 def render_portfolio_dashboard(portfolio: pd.DataFrame) -> None:
     """Render a visual description of the synthetic portfolio."""
+    auria_chart_colors = [
+        "#0B2B46",
+        "#F1A986",
+        "#6D7885",
+        "#14664A",
+        "#F7C6AE",
+        "#8298AA",
+    ]
+
     st.subheader("Vue d'ensemble du portefeuille")
     st.write(
         "Lecture synthetique de la composition du portefeuille, des concentrations "
@@ -1476,17 +1485,35 @@ def render_portfolio_dashboard(portfolio: pd.DataFrame) -> None:
                 values="exposure_count",
                 title=title,
                 hole=0.38,
+                color_discrete_sequence=auria_chart_colors,
             )
             figure.update_traces(
                 textposition="inside",
                 textinfo="percent",
+                textfont=dict(size=13, color="#FFFFFF"),
+                marker=dict(line=dict(color="#FFFAF5", width=2)),
                 hovertemplate="<b>%{label}</b><br>Expositions : %{value}<br>Part : %{percent}<extra></extra>",
             )
             figure.update_layout(
                 height=390,
-                margin=dict(l=10, r=10, t=55, b=10),
+                margin=dict(l=8, r=8, t=60, b=16),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(family="Inter, Aptos, Segoe UI, Arial", color="#0B2B46"),
+                title=dict(
+                    x=0.02,
+                    xanchor="left",
+                    font=dict(size=17, color="#0B2B46"),
+                ),
                 legend_title_text="",
-                legend=dict(orientation="h", y=-0.12, x=0.5, xanchor="center"),
+                legend=dict(
+                    orientation="h",
+                    y=-0.10,
+                    x=0.5,
+                    xanchor="center",
+                    font=dict(size=11, color="#536575"),
+                    bgcolor="rgba(0,0,0,0)",
+                ),
             )
             st.plotly_chart(figure, width="stretch")
 
