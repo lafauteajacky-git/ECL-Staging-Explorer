@@ -1133,17 +1133,17 @@ def render_brand_header(run_id: str | None = None, compact: bool = False) -> Non
                         margin:0;
                         max-width:760px;
                         color:#ffffff;
-                        font-size:clamp(2.8rem, 6vw, 5.2rem);
-                        line-height:0.98;
+                        font-size:clamp(2.8rem, 5.4vw, 4.8rem);
+                        line-height:1;
                         font-weight:900;
                         letter-spacing:0;
                     ">{APP_NAME}</h1>
                     <p style="
-                        max-width:820px;
-                        margin:26px 0 18px;
+                        max-width:760px;
+                        margin:28px 0 0;
                         color:rgba(255,255,255,0.88);
-                        font-size:1rem;
-                        line-height:1.65;
+                        font-size:0.96rem;
+                        line-height:1.72;
                     ">
                         Ce demonstrateur illustre, sur un portefeuille entierement synthetique,
                         la chaine de provisionnement IFRS 9 : controle de la qualite des donnees,
@@ -1152,21 +1152,34 @@ def render_brand_header(run_id: str | None = None, compact: bool = False) -> Non
                         prise en compte d'informations prospectives et documentation des jugements manageriaux.
                     </p>
                     <div style="
-                        margin-top:20px;
-                        padding:16px 18px;
+                        margin-top:24px;
+                        padding:18px 20px;
+                        border:1px solid rgba(255,255,255,0.12);
                         border-left:4px solid #f1a986;
-                        border-radius:0 12px 12px 0;
+                        border-radius:0 14px 14px 0;
                         background:rgba(255,255,255,0.08);
                     ">
                         <div style="color:#f1a986;font-size:0.7rem;font-weight:950;
-                            letter-spacing:0.1em;text-transform:uppercase;margin-bottom:9px;">
+                            letter-spacing:0.1em;text-transform:uppercase;margin-bottom:14px;">
                             Ancrages reglementaires
                         </div>
-                        <div style="color:rgba(255,255,255,0.88);font-size:0.82rem;line-height:1.65;">
-                            <strong>IFRS 9</strong> - depreciation, ECL 12 mois et lifetime, SICR et informations prospectives.<br>
-                            <strong>EBA / GL / 2017 / 06</strong> - pratiques de gestion du risque de credit et comptabilisation des pertes attendues.<br>
-                            <strong>BCE - Supervision bancaire</strong> - gouvernance du risque de credit, qualite des donnees, modeles et jugements experts.<br>
-                            <strong>BCBS 239</strong> - principes d'agregation et de reporting des donnees de risque.
+                        <div class="regulatory-anchor-list">
+                            <div class="regulatory-anchor-row">
+                                <strong>IFRS 9</strong>
+                                <span>Depreciation, ECL 12 mois et lifetime, SICR et informations prospectives.</span>
+                            </div>
+                            <div class="regulatory-anchor-row">
+                                <strong>EBA / GL / 2017 / 06</strong>
+                                <span>Gestion du risque de credit et comptabilisation des pertes attendues.</span>
+                            </div>
+                            <div class="regulatory-anchor-row">
+                                <strong>BCE</strong>
+                                <span>Gouvernance, qualite des donnees, modeles et jugements experts.</span>
+                            </div>
+                            <div class="regulatory-anchor-row">
+                                <strong>BCBS 239</strong>
+                                <span>Agregation et reporting des donnees de risque.</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1183,17 +1196,17 @@ def render_brand_header(run_id: str | None = None, compact: bool = False) -> Non
                         font-weight:950;
                         letter-spacing:0.12em;
                         text-transform:uppercase;
-                        margin-bottom:22px;
+                        margin-bottom:16px;
                     ">Perimetre de demonstration</div>
                     <div class="auria-scope-row"><span>Modeles</span><strong>Staging, ECL, scenarios</strong></div>
                     <div class="auria-scope-row"><span>Gouvernance</span><strong>Overlays, audit trail</strong></div>
                     <div style="
-                        margin-top:26px;
-                        padding-top:16px;
+                        margin-top:20px;
+                        padding-top:18px;
                         border-top:1px solid rgba(255,255,255,0.16);
-                        color:rgba(255,255,255,0.84);
-                        font-size:0.84rem;
-                        line-height:1.55;
+                        color:rgba(255,255,255,0.76);
+                        font-size:0.78rem;
+                        line-height:1.62;
                     ">
                         Donnees 100% synthetiques - demonstrateur a vocation pedagogique.
                         Ne pas utiliser pour la production, la comptabilisation ou le reporting reglementaire.
@@ -1221,6 +1234,34 @@ def render_brand_header(run_id: str | None = None, compact: bool = False) -> Non
             .auria-scope-row strong {{
                 text-align:right;
                 font-weight:900;
+            }}
+            .regulatory-anchor-list {{
+                display:grid;
+                gap:10px;
+            }}
+            .regulatory-anchor-row {{
+                display:grid;
+                grid-template-columns:minmax(120px, 0.72fr) minmax(0, 1.8fr);
+                gap:14px;
+                align-items:start;
+                color:rgba(255,255,255,0.86);
+                font-size:0.78rem;
+                line-height:1.45;
+            }}
+            .regulatory-anchor-row strong {{
+                color:#ffffff;
+                font-size:0.74rem;
+                font-weight:900;
+                letter-spacing:0.02em;
+            }}
+            .regulatory-anchor-row span {{
+                color:rgba(255,255,255,0.76);
+            }}
+            @media (max-width:720px) {{
+                .regulatory-anchor-row {{
+                    grid-template-columns:minmax(0, 1fr);
+                    gap:3px;
+                }}
             }}
         </style>
         """,
