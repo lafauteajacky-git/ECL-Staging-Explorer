@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from textwrap import dedent
 
 import pandas as pd
 import plotly.express as px
@@ -1285,31 +1286,33 @@ def render_demo_storyline() -> None:
     cards = []
     for icon, item in zip(storyline_icons, DEMO_STORYLINE):
         cards.append(
-            f"""
-            <article class="storyline-card">
-                <div class="storyline-number">{icon}</div>
-                <div>
-                    <div class="storyline-title">{item["title"]}</div>
-                    <div class="storyline-description">{item["description"]}</div>
-                </div>
-            </article>
-            """
+            dedent(
+                f"""
+                <article class="storyline-card">
+                    <div class="storyline-number">{icon}</div>
+                    <div>
+                        <div class="storyline-title">{item["title"]}</div>
+                        <div class="storyline-description">{item["description"]}</div>
+                    </div>
+                </article>
+                """
+            ).strip()
         )
 
     st.markdown(
-        f"""
-        <section class="storyline-section">
-            <div class="storyline-kicker">Parcours de demonstration</div>
-            <h3 class="storyline-heading">De la donnee synthetique a la decision comite</h3>
-            <p class="storyline-intro">
-                Un parcours en six etapes pour illustrer les controles, les calculs,
-                les ajustements et la gouvernance IFRS 9.
-            </p>
-            <div class="storyline-grid">
-                {''.join(cards)}
-            </div>
-        </section>
-        """,
+        dedent(
+            f"""
+            <section class="storyline-section">
+                <div class="storyline-kicker">Parcours de demonstration</div>
+                <h3 class="storyline-heading">De la donnee synthetique a la decision comite</h3>
+                <p class="storyline-intro">
+                    Un parcours en six etapes pour illustrer les controles, les calculs,
+                    les ajustements et la gouvernance IFRS 9.
+                </p>
+                <div class="storyline-grid">{''.join(cards)}</div>
+            </section>
+            """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
