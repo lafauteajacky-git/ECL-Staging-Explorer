@@ -514,6 +514,186 @@ def apply_auria_theme() -> None:
             line-height: 1.4;
         }
 
+        .light-kpi-panel {
+            margin: 16px 0 24px;
+            padding: 22px 24px;
+            border: 1px solid rgba(11, 43, 70, 0.15);
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.82);
+            box-shadow: 0 16px 38px rgba(11, 43, 70, 0.08);
+        }
+
+        .light-kpi-kicker {
+            margin-bottom: 17px;
+            color: var(--auria-peach);
+            font-size: 0.72rem;
+            font-weight: 900;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+        }
+
+        .light-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .light-kpi-item {
+            min-width: 0;
+            min-height: 88px;
+            padding: 2px 18px;
+            border-right: 1px solid rgba(11, 43, 70, 0.13);
+        }
+
+        .light-kpi-item:first-child {
+            padding-left: 0;
+        }
+
+        .light-kpi-item:last-child {
+            padding-right: 0;
+            border-right: 0;
+        }
+
+        .light-kpi-label {
+            min-height: 2.1em;
+            color: var(--auria-grey);
+            font-size: 0.68rem;
+            font-weight: 850;
+            line-height: 1.35;
+            text-transform: uppercase;
+        }
+
+        .light-kpi-value {
+            margin: 7px 0 6px;
+            color: var(--auria-navy);
+            font-size: clamp(1.45rem, 2vw, 2.05rem);
+            font-weight: 900;
+            line-height: 1.05;
+            overflow-wrap: anywhere;
+        }
+
+        .light-kpi-caption {
+            color: var(--auria-grey);
+            font-size: 0.75rem;
+            line-height: 1.4;
+        }
+
+        .decision-tree {
+            margin: 14px 0 26px;
+            padding: 22px;
+            border: 1px solid rgba(11, 43, 70, 0.15);
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.82);
+            box-shadow: 0 16px 38px rgba(11, 43, 70, 0.08);
+        }
+
+        .decision-root {
+            max-width: 560px;
+            margin: 0 auto 18px;
+            padding: 14px 18px;
+            border-radius: 12px;
+            color: #ffffff;
+            background: var(--auria-navy);
+            text-align: center;
+            font-weight: 900;
+        }
+
+        .decision-branches {
+            position: relative;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+            padding-top: 22px;
+        }
+
+        .decision-branches::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 16.7%;
+            right: 16.7%;
+            border-top: 2px solid rgba(11, 43, 70, 0.20);
+        }
+
+        .decision-branches::after {
+            content: "";
+            position: absolute;
+            top: -22px;
+            left: 50%;
+            height: 22px;
+            border-left: 2px solid rgba(11, 43, 70, 0.20);
+        }
+
+        .decision-node {
+            position: relative;
+            min-height: 205px;
+            padding: 18px;
+            border: 1px solid rgba(11, 43, 70, 0.13);
+            border-top: 4px solid var(--auria-peach);
+            border-radius: 14px;
+            background: rgba(248, 244, 239, 0.64);
+        }
+
+        .decision-node::before {
+            content: "";
+            position: absolute;
+            top: -24px;
+            left: 50%;
+            height: 22px;
+            border-left: 2px solid rgba(11, 43, 70, 0.20);
+        }
+
+        .decision-stage {
+            margin-bottom: 8px;
+            color: var(--auria-navy);
+            font-size: 1.05rem;
+            font-weight: 900;
+        }
+
+        .decision-condition {
+            margin-bottom: 10px;
+            color: var(--auria-ink);
+            font-size: 0.82rem;
+            font-weight: 800;
+            line-height: 1.45;
+        }
+
+        .decision-detail {
+            color: var(--auria-grey);
+            font-size: 0.78rem;
+            line-height: 1.5;
+        }
+
+        .governance-card {
+            min-height: 145px;
+            padding: 19px 20px;
+            border: 1px solid rgba(11, 43, 70, 0.14);
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.82);
+            box-shadow: 0 14px 32px rgba(11, 43, 70, 0.07);
+        }
+
+        .governance-label {
+            color: var(--auria-peach);
+            font-size: 0.68rem;
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .governance-value {
+            margin: 7px 0;
+            color: var(--auria-navy);
+            font-size: 1.02rem;
+            font-weight: 900;
+            line-height: 1.35;
+        }
+
+        .governance-detail {
+            color: var(--auria-grey);
+            font-size: 0.78rem;
+            line-height: 1.5;
+        }
+
         @media (max-width: 1100px) {
             .auria-main-hero-grid {
                 grid-template-columns: minmax(0, 1fr) !important;
@@ -544,6 +724,27 @@ def apply_auria_theme() -> None:
             .ecl-kpi-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
                 row-gap: 20px;
+            }
+
+            .light-kpi-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                row-gap: 20px;
+            }
+
+            .decision-branches {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .decision-branches::before {
+                display: none;
+            }
+
+            .decision-branches::after {
+                display: none;
+            }
+
+            .decision-node::before {
+                display: none;
             }
 
             .kpi-grid-four,
@@ -588,6 +789,21 @@ def apply_auria_theme() -> None:
             }
 
             .migration-kpi-item:last-child {
+                border-bottom: 0;
+            }
+
+            .light-kpi-grid {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .light-kpi-item {
+                min-height: auto;
+                padding: 14px 0;
+                border-right: 0;
+                border-bottom: 1px solid rgba(11, 43, 70, 0.13);
+            }
+
+            .light-kpi-item:last-child {
                 border-bottom: 0;
             }
         }
@@ -1035,6 +1251,45 @@ def render_kpi_panel(
             </section>
             """
         ).strip(),
+        unsafe_allow_html=True,
+    )
+
+
+def render_light_kpi_panel(
+    kicker: str,
+    metrics: list[tuple[str, str, str]],
+) -> None:
+    """Render a grouped KPI panel on a light background."""
+    items = []
+    for label, value, caption in metrics:
+        items.append(
+            '<div class="light-kpi-item">'
+            f'<div class="light-kpi-label">{escape(str(label))}</div>'
+            f'<div class="light-kpi-value">{escape(str(value))}</div>'
+            f'<div class="light-kpi-caption">{escape(str(caption))}</div>'
+            "</div>"
+        )
+    st.markdown(
+        (
+            '<section class="light-kpi-panel">'
+            f'<div class="light-kpi-kicker">{escape(kicker)}</div>'
+            f'<div class="light-kpi-grid">{"".join(items)}</div>'
+            "</section>"
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def render_governance_card(label: str, value: str, detail: str = "") -> None:
+    """Render a compact light governance card."""
+    st.markdown(
+        (
+            '<div class="governance-card">'
+            f'<div class="governance-label">{escape(label)}</div>'
+            f'<div class="governance-value">{escape(value)}</div>'
+            f'<div class="governance-detail">{escape(detail)}</div>'
+            "</div>"
+        ),
         unsafe_allow_html=True,
     )
 
@@ -1643,28 +1898,7 @@ def main() -> None:
         for insight in insights:
             st.info(insight)
 
-        st.subheader("Regulatory & Audit View")
-        audit_col1, audit_col2 = st.columns(2)
-        with audit_col1:
-            st.write("Regles de staging appliquees")
-            st.dataframe(audit_view["staging_rules"], width="stretch")
-        with audit_col2:
-            st.write("Hypotheses de calcul ECL")
-            st.dataframe(audit_view["ecl_assumptions"], width="stretch")
-        st.write("Run summary")
-        st.dataframe(audit_view["run_summary"], width="stretch")
-        st.write("Scenarios macroeconomiques")
-        st.dataframe(audit_view["macro_scenarios"], width="stretch")
-        st.write("Resultats par scenario")
-        st.dataframe(audit_view["scenario_results"], width="stretch")
-        st.write("Overlays actifs")
-        st.dataframe(audit_view["management_overlays"], width="stretch")
-        st.write("Synthese overlays")
-        st.dataframe(audit_view["overlay_summary"], width="stretch")
-        st.write("Coherence metier")
-        st.dataframe(audit_view["business_consistency"], width="stretch")
-        st.write("Alertes de coherence metier")
-        st.dataframe(audit_view["business_alerts"], width="stretch")
+        render_regulatory_audit_view(audit_view)
 
     elif selected_page == "Audit Trail":
         render_audit_trail(detailed_audit_trail)
@@ -4083,6 +4317,236 @@ def _top_contribution_label(df: pd.DataFrame, label_col: str, value_col: str) ->
     return f"{row[label_col]} ({share:.1%})"
 
 
+def render_staging_decision_tree() -> None:
+    """Render the simplified IFRS 9 staging rules as a decision tree."""
+    st.markdown(
+        dedent(
+            """
+            <section class="decision-tree">
+                <div class="decision-root">Evaluation de l'exposition a la date d'arrete</div>
+                <div class="decision-branches">
+                    <article class="decision-node">
+                        <div class="decision-stage">Stage 3</div>
+                        <div class="decision-condition">Defaut ou credit-impaired ?</div>
+                        <div class="decision-detail">
+                            DPD >= 90 jours, default flag, UTP, faillite probable ou
+                            restructuration distressed. Le Stage 3 est maintenu tant que
+                            le defaut persiste ou que la cure minimale de 3 mois n'est pas respectee.
+                        </div>
+                    </article>
+                    <article class="decision-node">
+                        <div class="decision-stage">Stage 2</div>
+                        <div class="decision-condition">Augmentation significative du risque de credit ?</div>
+                        <div class="decision-detail">
+                            DPD >= 30 jours, degradation de rating >= 2 crans, PD au moins
+                            doublee, watchlist, forbearance ou signal macro-sectoriel.
+                            Retour en Stage 1 apres disparition du SICR et probation minimale de 6 mois.
+                        </div>
+                    </article>
+                    <article class="decision-node">
+                        <div class="decision-stage">Stage 1</div>
+                        <div class="decision-condition">Absence de defaut et de SICR</div>
+                        <div class="decision-detail">
+                            Exposition performante sans deterioration significative.
+                            Le retour direct Stage 3 vers Stage 1 reste exceptionnel :
+                            paiements normalises, cure de 12 mois et justification forte.
+                        </div>
+                    </article>
+                </div>
+            </section>
+            """
+        ).strip(),
+        unsafe_allow_html=True,
+    )
+
+
+def render_ecl_formula_view() -> None:
+    """Render simplified ECL assumptions as mathematical formulas."""
+    formula_columns = st.columns(3)
+    formulas = [
+        (
+            "Stage 1",
+            r"\mathrm{ECL}_{12m} = \mathrm{PD}_{12m} \times \mathrm{LGD} \times \mathrm{EAD}",
+            "Pertes attendues a 12 mois pour les expositions performantes.",
+        ),
+        (
+            "Stage 2",
+            r"\mathrm{ECL}_{LT} = \mathrm{PD}_{lifetime} \times \mathrm{LGD} \times \mathrm{EAD}",
+            "Pertes attendues sur la duree de vie apres augmentation significative du risque.",
+        ),
+        (
+            "Stage 3",
+            r"\mathrm{ECL}_{default} = 100\% \times \mathrm{LGD} \times \mathrm{EAD}",
+            "Proxy pedagogique applique aux expositions en defaut ou credit-impaired.",
+        ),
+    ]
+    for column, (stage, formula, description) in zip(formula_columns, formulas, strict=False):
+        with column:
+            with st.container(border=True):
+                st.markdown(f"**{stage}**")
+                st.latex(formula)
+                st.caption(description)
+
+
+def render_regulatory_audit_view(audit_view: dict[str, pd.DataFrame]) -> None:
+    """Render regulatory assumptions and audit evidence without Excel-like tables."""
+    st.subheader("Regulatory & Audit View")
+    st.caption(
+        "Vue pedagogique des regles, hypotheses et parametres appliques. "
+        "Les donnees detaillees restent disponibles dans l'export Excel."
+    )
+
+    run_values = _audit_section_to_dict(audit_view.get("run_summary", pd.DataFrame()), "item", "value")
+    render_light_kpi_panel(
+        "Gouvernance du run",
+        [
+            ("Date du run", str(run_values.get("Run datetime", "N/A")), "Horodatage du calcul"),
+            ("Expositions", str(run_values.get("Exposures processed", "N/A")), "Contrats traites"),
+            (
+                "Anomalies data quality",
+                str(run_values.get("Data quality issues detected", "0")),
+                "Exceptions identifiees",
+            ),
+            ("Source", "Donnees synthetiques", "Demonstrateur non destine a la production"),
+        ],
+    )
+
+    st.markdown("#### Arbre de decision du staging")
+    st.caption("Les declencheurs Stage 3 sont prioritaires sur les criteres SICR de Stage 2.")
+    render_staging_decision_tree()
+
+    st.markdown("#### Formules de calcul ECL")
+    render_ecl_formula_view()
+
+    scenario_parameters = audit_view.get("macro_scenarios", pd.DataFrame())
+    scenario_results = audit_view.get("scenario_results", pd.DataFrame())
+    if not scenario_parameters.empty:
+        st.markdown("#### Parametres macroeconomiques")
+        scenario_cols = st.columns(len(scenario_parameters))
+        for column, (_, row) in zip(scenario_cols, scenario_parameters.iterrows(), strict=False):
+            with column:
+                render_governance_card(
+                    str(row.get("scenario", "Scenario")),
+                    f"Ponderation {float(row.get('weight', 0)):.0%}",
+                    (
+                        f"Multiplicateur PD x{float(row.get('pd_multiplier', 1)):.2f} | "
+                        f"Multiplicateur LGD x{float(row.get('lgd_multiplier', 1)):.2f}"
+                    ),
+                )
+    if not scenario_results.empty and {"scenario", "ecl"}.issubset(scenario_results.columns):
+        scenario_figure = px.bar(
+            scenario_results,
+            x="scenario",
+            y="ecl",
+            color="scenario",
+            text_auto=".3s",
+            title="ECL obtenue par scenario",
+            color_discrete_map={
+                "Baseline": "#0B2B46",
+                "Downside": "#F1A986",
+                "Upside": "#14664A",
+            },
+        )
+        scenario_figure.update_layout(
+            height=340,
+            showlegend=False,
+            xaxis_title="",
+            yaxis_title="ECL",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(scenario_figure, width="stretch")
+
+    overlay_parameters = audit_view.get("management_overlays", pd.DataFrame())
+    overlay_summary = audit_view.get("overlay_summary", pd.DataFrame())
+    if not overlay_parameters.empty:
+        st.markdown("#### Overlays manageriaux actifs")
+        render_overlay_rule_cards(overlay_parameters)
+    if not overlay_summary.empty and {"overlay_name", "overlay_amount"}.issubset(overlay_summary.columns):
+        active_overlay_summary = overlay_summary.loc[overlay_summary["overlay_amount"] > 0].copy()
+        if not active_overlay_summary.empty:
+            overlay_figure = px.bar(
+                active_overlay_summary.sort_values("overlay_amount"),
+                x="overlay_amount",
+                y="overlay_name",
+                orientation="h",
+                text_auto=".3s",
+                title="Impact des overlays actifs",
+                color_discrete_sequence=["#F1A986"],
+            )
+            overlay_figure.update_layout(
+                height=max(300, 55 * len(active_overlay_summary)),
+                xaxis_title="Montant d'overlay",
+                yaxis_title="",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(overlay_figure, width="stretch")
+
+    consistency_values = _audit_section_to_dict(
+        audit_view.get("business_consistency", pd.DataFrame()),
+        "metric",
+        "value",
+    )
+    if consistency_values:
+        st.markdown("#### Coherence metier")
+        render_light_kpi_panel(
+            "Resultats des controles de coherence",
+            [
+                (
+                    "Score de coherence",
+                    f"{float(consistency_values.get('business_consistency_score', 0)):.1%}",
+                    "Part des controles sans alerte",
+                ),
+                (
+                    "Controles passes",
+                    f"{int(float(consistency_values.get('business_checks_passed', 0))):,}".replace(",", " "),
+                    "Tests satisfaits",
+                ),
+                (
+                    "Alertes",
+                    str(int(float(consistency_values.get("business_alert_count", 0)))),
+                    "Cas necessitant une revue",
+                ),
+                (
+                    "Alertes critiques",
+                    str(int(float(consistency_values.get("business_critical_alert_count", 0)))),
+                    "Points a prioriser",
+                ),
+            ],
+        )
+
+    business_alerts = audit_view.get("business_alerts", pd.DataFrame())
+    st.markdown("#### Alertes de coherence prioritaires")
+    if business_alerts.empty:
+        st.success("Aucune alerte de coherence metier detectee.")
+    else:
+        severity_order = {"Critical": 0, "Warning": 1, "Info": 2}
+        alerts_to_show = (
+            business_alerts.assign(
+                _severity_order=business_alerts["severity"].map(severity_order).fillna(3)
+            )
+            .sort_values(["_severity_order", "loan_id"])
+            .head(8)
+        )
+        alert_cols = st.columns(2)
+        for index, (_, alert) in enumerate(alerts_to_show.iterrows()):
+            with alert_cols[index % 2]:
+                render_governance_card(
+                    f"{alert.get('severity', 'Alerte')} | {alert.get('loan_id', '')}",
+                    str(alert.get("rule", "Controle de coherence")),
+                    (
+                        f"Recommandation : {alert.get('recommendation', 'Revue requise.')} "
+                        f"Impact potentiel : {alert.get('potential_impact', 'A evaluer.')}"
+                    ),
+                )
+        if len(business_alerts) > len(alerts_to_show):
+            st.caption(
+                f"{len(business_alerts) - len(alerts_to_show)} alerte(s) supplementaire(s) "
+                "sont disponibles dans l'export et l'onglet Business Consistency."
+            )
+
+
 def render_dashboard(
     metrics: dict[str, float],
     ecl_by_stage: pd.DataFrame,
@@ -4100,37 +4564,57 @@ def render_dashboard(
     st.caption("EAD = Exposure at Default. ECL = Expected Credit Loss. Le taux de couverture correspond a ECL / EAD.")
 
     st.markdown("#### Vue executive")
-    executive_cols = st.columns(4)
-    with executive_cols[0]:
-        render_kpi_card("EAD totale", format_compact_currency(metrics["total_ead"]), "Portefeuille synthetique")
-    with executive_cols[1]:
-        render_kpi_card("ECL modele", format_compact_currency(metrics["total_ecl"]), "Avant scenarios et overlays")
-    with executive_cols[2]:
-        render_kpi_card("Taux de couverture", f"{metrics['coverage_ratio']:.2%}", "ECL modele / EAD")
-    with executive_cols[3]:
-        render_kpi_card("Expositions", f"{metrics['exposure_count']:,}".replace(",", " "), demo_profile)
+    render_light_kpi_panel(
+        "Synthese du portefeuille",
+        [
+            ("EAD totale", format_compact_currency(metrics["total_ead"]), "Portefeuille synthetique"),
+            ("ECL modele", format_compact_currency(metrics["total_ecl"]), "Avant scenarios et overlays"),
+            ("Taux de couverture", f"{metrics['coverage_ratio']:.2%}", "ECL modele / EAD"),
+            ("Expositions", f"{metrics['exposure_count']:,}".replace(",", " "), demo_profile),
+        ],
+    )
 
     st.markdown("#### Risque et qualite")
-    risk_cols = st.columns(4)
-    with risk_cols[0]:
-        render_kpi_card("Stage 2", f"{metrics['stage_2_share']:.1%}", "Expositions en deterioration")
-    with risk_cols[1]:
-        render_kpi_card("Stage 3", f"{metrics['stage_3_share']:.1%}", "Expositions en defaut")
-    with risk_cols[2]:
-        render_kpi_card("Data quality", str(metrics["data_quality_issue_count"]), "Anomalies detectees")
-    with risk_cols[3]:
-        render_kpi_card("Coherence metier", f"{business_summary['business_consistency_score']:.1%}", f"{int(business_summary['business_alert_count'])} alerte(s)")
+    render_light_kpi_panel(
+        "Indicateurs de risque et de controle",
+        [
+            ("Stage 2", f"{metrics['stage_2_share']:.1%}", "Expositions en deterioration"),
+            ("Stage 3", f"{metrics['stage_3_share']:.1%}", "Expositions en defaut"),
+            ("Data quality", str(metrics["data_quality_issue_count"]), "Anomalies detectees"),
+            (
+                "Coherence metier",
+                f"{business_summary['business_consistency_score']:.1%}",
+                f"{int(business_summary['business_alert_count'])} alerte(s)",
+            ),
+        ],
+    )
 
     st.markdown("#### Impact des overlays")
-    overlay_cols = st.columns([1.2, 1.0, 1.2, 0.9])
-    with overlay_cols[0]:
-        render_kpi_card("ECL avant overlay", format_compact_currency(float(overlay_metrics["ecl_before_overlay"])), "Base d'ajustement")
-    with overlay_cols[1]:
-        render_kpi_card("Overlays", format_compact_currency(float(overlay_metrics["total_overlay_amount"])), f"{overlay_metrics['overlay_variation_pct']:.2%}")
-    with overlay_cols[2]:
-        render_kpi_card("ECL apres overlay", format_compact_currency(float(overlay_metrics["ecl_after_overlay"])), "ECL finale demo")
-    with overlay_cols[3]:
-        render_kpi_card("Top overlay", str(overlay_metrics["top_overlay_contributor"]), "Principal ajustement")
+    render_light_kpi_panel(
+        "Effet des ajustements manageriaux",
+        [
+            (
+                "ECL avant overlay",
+                format_compact_currency(float(overlay_metrics["ecl_before_overlay"])),
+                "Base d'ajustement",
+            ),
+            (
+                "Overlays",
+                format_compact_currency(float(overlay_metrics["total_overlay_amount"])),
+                f"{float(overlay_metrics['overlay_variation_pct']):.2%} de l'ECL avant overlay",
+            ),
+            (
+                "ECL apres overlay",
+                format_compact_currency(float(overlay_metrics["ecl_after_overlay"])),
+                "ECL finale demo",
+            ),
+            (
+                "Top overlay",
+                str(overlay_metrics["top_overlay_contributor"]),
+                "Principal ajustement",
+            ),
+        ],
+    )
 
     st.divider()
     st.markdown("#### Lecture du portefeuille")
