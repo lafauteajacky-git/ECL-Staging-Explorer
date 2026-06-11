@@ -1183,7 +1183,9 @@ def render_brand_header(run_id: str | None = None, compact: bool = False) -> Non
                         </div>
                     </div>
                 </div>
-                <aside style="
+                <aside class="auria-home-scope-panel" style="
+                    position:relative;
+                    overflow:hidden;
                     border:1px solid rgba(255,255,255,0.18);
                     border-radius:20px;
                     background:rgba(255,255,255,0.12);
@@ -1211,6 +1213,7 @@ def render_brand_header(run_id: str | None = None, compact: bool = False) -> Non
                         Donnees 100% synthetiques - demonstrateur a vocation pedagogique.
                         Ne pas utiliser pour la production, la comptabilisation ou le reporting reglementaire.
                     </div>
+                    <div class="auria-home-scope-mark" aria-hidden="true"></div>
                 </aside>
             </div>
         </section>
@@ -1257,10 +1260,43 @@ def render_brand_header(run_id: str | None = None, compact: bool = False) -> Non
             .regulatory-anchor-row span {{
                 color:rgba(255,255,255,0.76);
             }}
+            .auria-home-scope-panel > *:not(.auria-home-scope-mark) {{
+                position:relative;
+                z-index:2;
+            }}
+            .auria-home-scope-mark {{
+                position:absolute;
+                right:-42px;
+                bottom:-58px;
+                width:230px;
+                height:230px;
+                z-index:1;
+                opacity:0.16;
+                background-image:url('https://auria-advisory.fr/wp-content/uploads/2025/10/picto-rose-trans60.png');
+                background-repeat:no-repeat;
+                background-position:center;
+                background-size:contain;
+                transform:rotate(-8deg);
+                pointer-events:none;
+            }}
+            .auria-home-scope-mark::before {{
+                content:"";
+                position:absolute;
+                inset:-26px;
+                border:1px solid rgba(241,169,134,0.22);
+                border-radius:50%;
+            }}
             @media (max-width:720px) {{
                 .regulatory-anchor-row {{
                     grid-template-columns:minmax(0, 1fr);
                     gap:3px;
+                }}
+                .auria-home-scope-mark {{
+                    width:180px;
+                    height:180px;
+                    right:-34px;
+                    bottom:-50px;
+                    opacity:0.12;
                 }}
             }}
         </style>
