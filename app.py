@@ -3263,28 +3263,88 @@ def render_macro_scenarios(
     else:
         st.error(f"Somme des ponderations : {total_weight:.0%}. La somme doit etre egale a 100%.")
 
-    st.write("Parametres appliques")
-    display_params = scenario_parameters.copy()
-    display_params["weight"] = display_params["weight"].map(lambda value: f"{value:.0%}")
-    st.dataframe(display_params, width="stretch")
+    st.markdown("#### Hypotheses appliquees")
+    scenario_palette = {
+        "Baseline": ("#0B2B46", "Scenario central"),
+        "Downside": ("#F1A986", "Scenario de stress"),
+        "Upside": ("#14664A", "Scenario favorable"),
+    }
+    scenario_columns = st.columns(max(len(scenario_parameters), 1))
+    for column, (_, row) in zip(scenario_columns, scenario_parameters.iterrows(), strict=False):
+        scenario_name = str(row["scenario"])
+        accent_color, scenario_caption = scenario_palette.get(
+            scenario_name,
+            ("#6D7885", "Scenario macroeconomique"),
+        )
+        with column:
+            st.markdown(
+                f"""
+                <div style="
+                    min-height:154px;
+                    border:1px solid rgba(11,43,70,0.14);
+                    border-top:5px solid {accent_color};
+                    border-radius:18px;
+                    background:rgba(255,255,255,0.88);
+                    box-shadow:0 18px 44px rgba(11,43,70,0.10);
+                    padding:18px;
+                ">
+                    <div style="color:#6d7885;font-size:0.74rem;font-weight:850;
+                        letter-spacing:0.07em;text-transform:uppercase;">{scenario_caption}</div>
+                    <div style="color:#0b2b46;font-size:1.35rem;font-weight:850;
+                        margin:4px 0 14px;">{scenario_name}</div>
+                    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+                        gap:10px;color:#0b2b46;">
+                        <div><strong>{float(row["weight"]):.0%}</strong><br>
+                            <span style="font-size:0.75rem;color:#6d7885;">Ponderation</span></div>
+                        <div><strong>x{float(row["pd_multiplier"]):.2f}</strong><br>
+                            <span style="font-size:0.75rem;color:#6d7885;">PD</span></div>
+                        <div><strong>x{float(row["lgd_multiplier"]):.2f}</strong><br>
+                            <span style="font-size:0.75rem;color:#6d7885;">LGD</span></div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
+    with st.expander("Voir le detail des parametres"):
+        display_params = scenario_parameters.copy()
+        display_params["weight"] = display_params["weight"].map(lambda value: f"{value:.0%}")
+        st.dataframe(display_params, width="stretch", hide_index=True)
+
+    st.markdown("#### Resultats ECL par scenario")
     kpi_row = st.columns(4)
-    kpi_row[0].metric("ECL baseline", format_currency(scenario_metrics["ecl_baseline"]))
-    kpi_row[1].metric("ECL downside", format_currency(scenario_metrics["ecl_downside"]))
-    kpi_row[2].metric("ECL upside", format_currency(scenario_metrics["ecl_upside"]))
-    kpi_row[3].metric("ECL ponderee", format_currency(scenario_metrics["ecl_weighted"]))
+    scenario_kpis = [
+        ("ECL baseline", scenario_metrics["ecl_baseline"], "Hypothese macroeconomique centrale"),
+        ("ECL downside", scenario_metrics["ecl_downside"], "Impact du scenario de stress"),
+        ("ECL upside", scenario_metrics["ecl_upside"], "Impact du scenario favorable"),
+        ("ECL ponderee", scenario_metrics["ecl_weighted"], "Moyenne selon les ponderations"),
+    ]
+    for column, (label, value, caption) in zip(kpi_row, scenario_kpis, strict=False):
+        with column:
+            render_kpi_card(label, format_compact_currency(float(value)), caption)
 
+    st.markdown("#### Sensibilite par rapport au scenario central")
     impact_row = st.columns(2)
-    impact_row[0].metric(
-        "Impact downside vs baseline",
-        format_currency(scenario_metrics["downside_impact_amount"]),
-        f"{scenario_metrics['downside_impact_pct']:.2%}",
-    )
-    impact_row[1].metric(
-        "Impact ECL ponderee vs baseline",
-        format_currency(scenario_metrics["weighted_impact_amount"]),
-        f"{scenario_metrics['weighted_impact_pct']:.2%}",
-    )
+    impact_kpis = [
+        (
+            "Impact downside vs baseline",
+            scenario_metrics["downside_impact_amount"],
+            scenario_metrics["downside_impact_pct"],
+        ),
+        (
+            "Impact ECL ponderee vs baseline",
+            scenario_metrics["weighted_impact_amount"],
+            scenario_metrics["weighted_impact_pct"],
+        ),
+    ]
+    for column, (label, amount, percentage) in zip(impact_row, impact_kpis, strict=False):
+        direction = "hausse" if float(amount) >= 0 else "baisse"
+        with column:
+            render_kpi_card(
+                label,
+                format_compact_currency(float(amount)),
+                f"{direction.capitalize()} de {abs(float(percentage)):.2%}",
+            )
 
     col1, col2 = st.columns(2)
     with col1:
