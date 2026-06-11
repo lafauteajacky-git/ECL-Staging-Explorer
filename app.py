@@ -359,6 +359,10 @@ def apply_auria_theme() -> None:
             border-top: 1px solid rgba(255, 255, 255, 0.16);
         }
 
+        .ecl-kpi-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
         .migration-kpi-item {
             min-width: 0;
             min-height: 92px;
@@ -425,6 +429,11 @@ def apply_auria_theme() -> None:
                 grid-template-columns: repeat(2, minmax(0, 1fr));
                 row-gap: 20px;
             }
+
+            .ecl-kpi-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                row-gap: 20px;
+            }
         }
 
         @media (max-width: 720px) {
@@ -437,7 +446,8 @@ def apply_auria_theme() -> None:
             }
 
             .migration-kpi-grid-primary,
-            .migration-kpi-grid-secondary {
+            .migration-kpi-grid-secondary,
+            .ecl-kpi-grid {
                 grid-template-columns: minmax(0, 1fr);
             }
 
@@ -1954,19 +1964,33 @@ def render_ecl_calculation_dashboard(ecl_portfolio: pd.DataFrame) -> None:
     total_ecl = float(filtered["ecl"].sum())
     coverage_ratio = total_ecl / total_ead if total_ead else 0.0
 
-    kpi_cols = st.columns(4)
-    with kpi_cols[0]:
-        render_kpi_card(
-            "Expositions",
-            f"{len(filtered):,}".replace(",", " "),
-            "Perimetre filtre",
+    ecl_metrics = [
+        ("Expositions", f"{len(filtered):,}".replace(",", " "), "Perimetre filtre"),
+        ("EAD totale", format_compact_currency(total_ead), "Exposure at Default"),
+        ("ECL totale", format_compact_currency(total_ecl), "Avant scenarios et overlays"),
+        ("Taux de couverture", f"{coverage_ratio:.2%}", "ECL / EAD"),
+    ]
+    ecl_metric_markup = "".join(
+        (
+            '<div class="migration-kpi-item">'
+            f'<div class="migration-kpi-label">{label}</div>'
+            f'<div class="migration-kpi-value">{value}</div>'
+            f'<div class="migration-kpi-caption">{caption}</div>'
+            "</div>"
         )
-    with kpi_cols[1]:
-        render_kpi_card("EAD totale", format_compact_currency(total_ead), "Exposure at Default")
-    with kpi_cols[2]:
-        render_kpi_card("ECL totale", format_compact_currency(total_ecl), "Avant scenarios et overlays")
-    with kpi_cols[3]:
-        render_kpi_card("Taux de couverture", f"{coverage_ratio:.2%}", "ECL / EAD")
+        for label, value, caption in ecl_metrics
+    )
+    st.markdown(
+        dedent(
+            f"""
+            <section class="migration-kpi-panel">
+                <div class="migration-kpi-kicker">Synthese du perimetre selectionne</div>
+                <div class="migration-kpi-grid ecl-kpi-grid">{ecl_metric_markup}</div>
+            </section>
+            """
+        ).strip(),
+        unsafe_allow_html=True,
+    )
 
     stage_order = ["Stage 1", "Stage 2", "Stage 3"]
     stage_summary = (
@@ -1988,6 +2012,56 @@ def render_ecl_calculation_dashboard(ecl_portfolio: pd.DataFrame) -> None:
     stage_summary["ecl_share"] = (
         stage_summary["ecl"] / total_ecl if total_ecl else 0
     )
+
+    st.markdown("#### Profil du perimetre selectionne")
+    profile_left, profile_right = st.columns(2)
+    with profile_left:
+        count_figure = px.bar(
+            stage_summary,
+            x="stage",
+            y="exposure_count",
+            text="exposure_count",
+            title="Nombre d'expositions par stage",
+            color="stage",
+            color_discrete_map={
+                "Stage 1": "#8298AA",
+                "Stage 2": "#F1A986",
+                "Stage 3": "#0B2B46",
+            },
+        )
+        count_figure.update_layout(
+            height=360,
+            xaxis_title="",
+            yaxis_title="Nombre d'expositions",
+            showlegend=False,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(count_figure, width="stretch")
+
+    with profile_right:
+        ead_figure = px.bar(
+            stage_summary,
+            x="stage",
+            y="ead",
+            text_auto=".3s",
+            title="EAD par stage",
+            color="stage",
+            color_discrete_map={
+                "Stage 1": "#8298AA",
+                "Stage 2": "#F1A986",
+                "Stage 3": "#0B2B46",
+            },
+        )
+        ead_figure.update_layout(
+            height=360,
+            xaxis_title="",
+            yaxis_title="EAD (EUR)",
+            showlegend=False,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(ead_figure, width="stretch")
 
     st.markdown("#### ECL par stage")
     chart_left, chart_right = st.columns([1.15, 0.85])
@@ -2067,36 +2141,17 @@ def render_ecl_calculation_dashboard(ecl_portfolio: pd.DataFrame) -> None:
         else:
             st.info("Aucune ECL positive sur le perimetre selectionne.")
 
-    st.markdown("#### Profil du perimetre selectionne")
-    profile_left, profile_right = st.columns(2)
-    with profile_left:
-        count_figure = px.bar(
-            stage_summary,
-            x="stage",
-            y="exposure_count",
-            text="exposure_count",
-            title="Nombre d'expositions par stage",
-            color="stage",
-            color_discrete_map={
-                "Stage 1": "#8298AA",
-                "Stage 2": "#F1A986",
-                "Stage 3": "#0B2B46",
-            },
-        )
-        count_figure.update_layout(
-            height=360,
-            xaxis_title="",
-            yaxis_title="Nombre d'expositions",
-            showlegend=False,
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-        )
-        st.plotly_chart(count_figure, width="stretch")
+    st.markdown("#### ECL par motif de staging")
+    reason_cols = st.columns(2)
 
-    with profile_right:
+    def render_stage_reason_chart(stage_name: str, color: str) -> None:
+        stage_data = filtered.loc[filtered["stage"].eq(stage_name)].copy()
+        if stage_data.empty:
+            st.info(f"Aucune exposition {stage_name} sur le perimetre selectionne.")
+            return
         reason_summary = (
-            filtered.groupby("stage_reason", as_index=False)
-            .agg(ecl=("ecl", "sum"))
+            stage_data.groupby("stage_reason", as_index=False)
+            .agg(ecl=("ecl", "sum"), exposure_count=("loan_id", "count"))
             .sort_values("ecl", ascending=True)
         )
         reason_figure = px.bar(
@@ -2105,17 +2160,76 @@ def render_ecl_calculation_dashboard(ecl_portfolio: pd.DataFrame) -> None:
             y="stage_reason",
             orientation="h",
             text_auto=".3s",
-            title="ECL par motif de staging",
-            color_discrete_sequence=["#0B2B46"],
+            title=f"{stage_name} - ECL par motif",
+            custom_data=["exposure_count"],
+            color_discrete_sequence=[color],
+        )
+        reason_figure.update_traces(
+            hovertemplate=(
+                "<b>%{y}</b><br>ECL : %{x:,.0f} EUR"
+                "<br>Expositions : %{customdata[0]}<extra></extra>"
+            )
         )
         reason_figure.update_layout(
-            height=max(360, 38 * len(reason_summary)),
+            height=max(360, 44 * len(reason_summary)),
             xaxis_title="ECL (EUR)",
             yaxis_title="",
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=10, r=15, t=55, b=35),
         )
         st.plotly_chart(reason_figure, width="stretch")
+
+    with reason_cols[0]:
+        render_stage_reason_chart("Stage 2", "#F1A986")
+    with reason_cols[1]:
+        render_stage_reason_chart("Stage 3", "#0B2B46")
+
+    probation_columns = [
+        column
+        for column in [
+            "probation_flag",
+            "probation_status",
+            "probation_period_flag",
+            "cure_flag",
+            "returned_to_stage_1_flag",
+        ]
+        if column in filtered.columns
+    ]
+    if probation_columns:
+        probation_column = probation_columns[0]
+        stage_1 = filtered.loc[filtered["stage"].eq("Stage 1")].copy()
+        if not stage_1.empty:
+            probation_values = stage_1[probation_column]
+            probation_mask = probation_values.fillna(False).astype(str).str.lower().isin(
+                ["true", "1", "yes", "oui", "active", "probation", "cured", "cure"]
+            )
+            stage_1["stage_1_origin"] = np.where(
+                probation_mask,
+                "Retour en Stage 1 apres probation",
+                "Stage 1 nativement sain",
+            )
+            probation_summary = (
+                stage_1.groupby("stage_1_origin", as_index=False)
+                .agg(ead=("ead", "sum"), ecl=("ecl", "sum"), exposure_count=("loan_id", "count"))
+            )
+            probation_figure = px.bar(
+                probation_summary,
+                x="stage_1_origin",
+                y=["ead", "ecl"],
+                barmode="group",
+                title=f"Stage 1 - distinction selon {probation_column}",
+                color_discrete_map={"ead": "#8298AA", "ecl": "#F1A986"},
+            )
+            probation_figure.update_layout(
+                height=390,
+                xaxis_title="",
+                yaxis_title="Montant (EUR)",
+                legend_title_text="",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(probation_figure, width="stretch")
 
     with st.expander("Consulter le detail des calculs ECL", expanded=False):
         st.dataframe(
