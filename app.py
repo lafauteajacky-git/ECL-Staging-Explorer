@@ -3577,27 +3577,31 @@ def render_overlay_rule_cards(overlay_parameters: pd.DataFrame) -> None:
             str(overlay.get("justification", "Justification métier à documenter.")),
         )
         cards.append(
-            f"""
-            <article class="overlay-rule-card">
-                <div class="overlay-rule-heading">
-                    <div class="overlay-rule-name">{overlay_name}</div>
-                    <div class="overlay-rule-rate">{float(overlay.get("rate", 0)):.0%}</div>
-                </div>
-                <div class="overlay-rule-label">Périmètre concerné</div>
-                <div class="overlay-rule-scope">{scope}</div>
-                <div class="overlay-rule-label">Commentaire métier</div>
-                <div class="overlay-rule-comment">{comment}</div>
-            </article>
-            """
+            dedent(
+                f"""
+                <article class="overlay-rule-card">
+                    <div class="overlay-rule-heading">
+                        <div class="overlay-rule-name">{overlay_name}</div>
+                        <div class="overlay-rule-rate">{float(overlay.get("rate", 0)):.0%}</div>
+                    </div>
+                    <div class="overlay-rule-label">Périmètre concerné</div>
+                    <div class="overlay-rule-scope">{scope}</div>
+                    <div class="overlay-rule-label">Commentaire métier</div>
+                    <div class="overlay-rule-comment">{comment}</div>
+                </article>
+                """
+            ).strip()
         )
 
     if not cards:
         st.info("Aucun overlay n'est activé pour ce run.")
         return
-    st.markdown(
-        f'<section class="overlay-rule-grid">{"".join(cards)}</section>',
-        unsafe_allow_html=True,
+    overlay_cards_html = (
+        '<section class="overlay-rule-grid">'
+        + "".join(cards)
+        + "</section>"
     )
+    st.markdown(overlay_cards_html, unsafe_allow_html=True)
 
 
 def render_management_overlays(
