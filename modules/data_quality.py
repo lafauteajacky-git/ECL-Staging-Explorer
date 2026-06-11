@@ -432,6 +432,31 @@ def run_raw_data_quality_tests(portfolio: pd.DataFrame) -> pd.DataFrame:
             flag_field,
             ~portfolio[flag_field].isin([True, False]),
         )
+    if "previous_stage" in portfolio:
+        add_test(
+            "VALID_PREVIOUS_STAGE",
+            "Validite",
+            "Stage precedent appartenant au referentiel IFRS 9",
+            "previous_stage",
+            ~portfolio["previous_stage"].isin(["Stage 1", "Stage 2", "Stage 3"]),
+            severity="Critical",
+        )
+    if "cure_period_months" in portfolio:
+        add_test(
+            "VALID_CURE_PERIOD",
+            "Validite",
+            "Anciennete de cure positive ou nulle",
+            "cure_period_months",
+            pd.to_numeric(portfolio["cure_period_months"], errors="coerce").lt(0),
+        )
+    if "probation_required_months" in portfolio:
+        add_test(
+            "VALID_PROBATION_THRESHOLD",
+            "Validite",
+            "Seuil de probation positif ou nul",
+            "probation_required_months",
+            pd.to_numeric(portfolio["probation_required_months"], errors="coerce").lt(0),
+        )
     add_test(
         "CONSISTENCY_PD_TERM",
         "Coherence",

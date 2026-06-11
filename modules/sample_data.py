@@ -86,7 +86,7 @@ def generate_portfolio(n_exposures: int = 1_000, seed: int = 42) -> pd.DataFrame
         }
     )
     portfolio["initial_stage"] = "Stage 1"
-    return portfolio
+    return _add_staging_transition_context(portfolio, rng)
 
 
 def generate_demo_portfolio(
@@ -121,7 +121,7 @@ def generate_demo_portfolio(
 
     if data_quality_level is not None:
         portfolio = apply_data_quality_level(portfolio, data_quality_level, seed + 20_000)
-    return portfolio
+    return _add_staging_transition_context(portfolio, rng)
 
 
 def apply_data_quality_level(
@@ -240,4 +240,103 @@ def _apply_cre_stress_profile(portfolio: pd.DataFrame, rng: np.random.Generator)
     result.loc[cre_share, "lgd"] = np.round(np.clip(result.loc[cre_share, "lgd"] * 1.15, 0.20, 0.85), 4)
     result.loc[cre_share, "watchlist_flag"] = rng.random(int(cre_share.sum())) < 0.28
     result.loc[cre_share, "forbearance_flag"] = rng.random(int(cre_share.sum())) < 0.12
+    return result
+
+
+def _add_staging_transition_context(
+    portfolio: pd.DataFrame,
+    rng: np.random.Generator,
+) -> pd.DataFrame:
+    """Add synthetic prior-stage, default and cure information.
+
+    The fields support pedagogical stage-transition rules. They are generated
+    from fictional distributions and are not calibrated on banking data.
+    """
+    result = portfolio.copy()
+    n = len(result)
+    if not n:
+        return result
+
+    rating_downgrade = (
+        pd.to_numeric(result["current_rating"], errors="coerce")
+        - pd.to_numeric(result["origination_rating"], errors="coerce")
+    )
+    origination_pd = np.clip(
+        0.0015 + (pd.to_numeric(result["origination_rating"], errors="coerce").fillna(5) - 1) * 0.008,
+        0.0005,
+        0.25,
+    )
+    result["origination_pd_12m"] = np.round(origination_pd, 5)
+    result["macro_sector_stress_flag"] = (
+        result["sector"].isin(["Real estate", "Energy"]) & (rng.random(n) < 0.12)
+    )
+
+    result["unlikely_to_pay_flag"] = rng.random(n) < 0.015
+    result["bankruptcy_flag"] = rng.random(n) < 0.004
+    result["distressed_restructuring_flag"] = (
+        result["forbearance_flag"].fillna(False) & (rng.random(n) < 0.20)
+    )
+    result["credit_impaired_flag"] = (
+        result["default_flag"].fillna(False)
+        | pd.to_numeric(result["days_past_due"], errors="coerce").ge(90)
+        | result["unlikely_to_pay_flag"]
+        | result["bankruptcy_flag"]
+        | result["distressed_restructuring_flag"]
+    )
+
+    pd_ratio = (
+        pd.to_numeric(result["pd_12m"], errors="coerce")
+        / result["origination_pd_12m"].replace(0, np.nan)
+    )
+    result["sicr_flag"] = (
+        pd.to_numeric(result["days_past_due"], errors="coerce").ge(30)
+        | rating_downgrade.ge(2)
+        | pd_ratio.ge(2.0)
+        | result["watchlist_flag"].fillna(False)
+        | result["forbearance_flag"].fillna(False)
+        | result["macro_sector_stress_flag"]
+    )
+
+    previous_stage = np.empty(n, dtype=object)
+    random_draw = rng.random(n)
+    default_mask = result["credit_impaired_flag"].to_numpy()
+    sicr_mask = result["sicr_flag"].fillna(False).to_numpy() & ~default_mask
+    healthy_mask = ~(default_mask | sicr_mask)
+
+    previous_stage[default_mask] = np.select(
+        [random_draw[default_mask] < 0.15, random_draw[default_mask] < 0.70],
+        ["Stage 1", "Stage 2"],
+        default="Stage 3",
+    )
+    previous_stage[sicr_mask] = np.select(
+        [random_draw[sicr_mask] < 0.35, random_draw[sicr_mask] < 0.90],
+        ["Stage 1", "Stage 2"],
+        default="Stage 3",
+    )
+    previous_stage[healthy_mask] = np.select(
+        [random_draw[healthy_mask] < 0.75, random_draw[healthy_mask] < 0.95],
+        ["Stage 1", "Stage 2"],
+        default="Stage 3",
+    )
+    result["previous_stage"] = previous_stage
+
+    result["payment_normalized_flag"] = (
+        pd.to_numeric(result["days_past_due"], errors="coerce").lt(30)
+        & ~result["credit_impaired_flag"]
+        & ~result["watchlist_flag"].fillna(False)
+        & ~result["forbearance_flag"].fillna(False)
+    )
+    result["cure_period_months"] = rng.integers(0, 16, size=n)
+    result["probation_required_months"] = np.select(
+        [result["previous_stage"].eq("Stage 3"), result["previous_stage"].eq("Stage 2")],
+        [3, 6],
+        default=0,
+    )
+    result["strong_stage_3_to_1_justification_flag"] = (
+        result["previous_stage"].eq("Stage 3")
+        & result["payment_normalized_flag"]
+        & ~result["sicr_flag"]
+        & (result["cure_period_months"] >= 12)
+        & (rng.random(n) < 0.20)
+    )
     return result

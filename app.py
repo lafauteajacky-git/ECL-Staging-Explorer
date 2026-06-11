@@ -1230,7 +1230,11 @@ def main() -> None:
             st.error(f"Chargement impossible : {exc}")
             st.stop()
     else:
-        if generate_clicked or "portfolio" not in st.session_state:
+        portfolio_requires_transition_upgrade = (
+            "portfolio" in st.session_state
+            and "previous_stage" not in st.session_state["portfolio"].columns
+        )
+        if generate_clicked or "portfolio" not in st.session_state or portfolio_requires_transition_upgrade:
             generation_datetime = datetime.now()
             generated_portfolio = load_synthetic_portfolio(
                 n_exposures=n_exposures,
@@ -1339,6 +1343,18 @@ def main() -> None:
             [{"metric": metric, "value": value} for metric, value in business_summary.items()]
         )
         audit_view["business_alerts"] = business_alerts
+        staging_transition_summary = (
+            staged.groupby(
+                ["previous_stage", "stage", "transition_rule", "probation_status"],
+                as_index=False,
+            )
+            .agg(
+                exposure_count=("loan_id", "count"),
+                ead=("ead", "sum"),
+            )
+            .sort_values(["previous_stage", "stage", "exposure_count"], ascending=[True, True, False])
+        )
+        audit_view["staging_transitions"] = staging_transition_summary
         dashboard_summary = build_dashboard_summary_table(metrics, scenario_metrics | overlay_metrics | business_summary)
         detailed_audit_trail = build_audit_trail(
             run_id,
@@ -1360,6 +1376,7 @@ def main() -> None:
             business_alerts,
             client_discussion_points,
             active_demo_profile,
+            staging_transition_summary=staging_transition_summary,
         )
         committee_summary = generate_committee_summary(
             run_id,
@@ -1506,7 +1523,30 @@ def main() -> None:
     elif selected_page == "Export":
         st.subheader("Export Excel")
         staging_results = staged[
-            ["loan_id", "client_id", "initial_stage", "stage", "stage_reason", "stage_comment", "days_past_due", "origination_rating", "current_rating"]
+            [
+                "loan_id",
+                "client_id",
+                "initial_stage",
+                "previous_stage",
+                "stage",
+                "transition_rule",
+                "probation_status",
+                "cure_period_months",
+                "probation_required_months",
+                "stage_reason",
+                "stage_comment",
+                "days_past_due",
+                "origination_rating",
+                "current_rating",
+                "origination_pd_12m",
+                "pd_12m",
+                "sicr_flag",
+                "credit_impaired_flag",
+                "unlikely_to_pay_flag",
+                "bankruptcy_flag",
+                "distressed_restructuring_flag",
+                "payment_normalized_flag",
+            ]
         ]
         export_bytes = build_excel_export_bytes(
             portfolio,
@@ -2405,9 +2445,9 @@ def render_staging_migration_analysis(staged: pd.DataFrame) -> None:
     )
     render_transition_heatmap(
         stage_matrix,
-        f"Stage initial vers stage recalcule - {measure_label}",
+        f"Stage precedent vers stage recalcule - {measure_label}",
         "Stage recalcule",
-        "Stage initial",
+        "Stage precedent",
     )
 
     filtered_stages = staged.loc[staged["stage_reason"].isin(selected_reasons)].copy()
@@ -2529,7 +2569,11 @@ def render_staging_migration_analysis(staged: pd.DataFrame) -> None:
                     "loan_id",
                     "client_id",
                     "initial_stage",
+                    "previous_stage",
                     "stage",
+                    "transition_rule",
+                    "probation_status",
+                    "cure_period_months",
                     "stage_reason",
                     "stage_comment",
                     "days_past_due",
@@ -3308,6 +3352,36 @@ def render_audit_trail(audit_trail: dict[str, pd.DataFrame]) -> None:
         _render_audit_bullets("Scenarios macro", audit_trail.get("scenario_parameters"), ["scenario", "weight", "pd_multiplier", "lgd_multiplier"])
         _render_audit_bullets("Overlays actifs", audit_trail.get("overlay_parameters"), ["name", "overlay_type", "rate", "justification"])
 
+    st.markdown("#### Transitions de stage et periodes de cure")
+    transition_summary = audit_trail.get("staging_transition_summary", pd.DataFrame())
+    if transition_summary is not None and not transition_summary.empty:
+        transition_chart = px.bar(
+            transition_summary,
+            x="transition_rule",
+            y="exposure_count",
+            color="stage",
+            text="exposure_count",
+            title="Transitions observees dans le run",
+            color_discrete_map={
+                "Stage 1": "#8298AA",
+                "Stage 2": "#F1A986",
+                "Stage 3": "#0B2B46",
+            },
+        )
+        transition_chart.update_layout(
+            height=410,
+            xaxis_title="",
+            yaxis_title="Nombre d'expositions",
+            legend_title_text="Stage final",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(transition_chart, width="stretch")
+        with st.expander("Consulter la synthese detaillee des transitions", expanded=False):
+            st.dataframe(transition_summary, width="stretch", hide_index=True)
+    else:
+        st.caption("Synthese des transitions non disponible.")
+
     st.markdown("#### Alertes et contributeurs")
     alert_left, alert_right = st.columns([1.1, 0.9])
     with alert_left:
@@ -3334,6 +3408,7 @@ def render_audit_trail(audit_trail: dict[str, pd.DataFrame]) -> None:
         "ecl_assumptions",
         "scenario_parameters",
         "overlay_parameters",
+        "staging_transition_summary",
         "critical_business_alerts",
         "top_contributors",
     }
@@ -3621,12 +3696,13 @@ def render_dashboard(
         product_fig = px.bar(ecl_by_product.head(8), x="product_type", y="ecl", title="ECL par produit", text_auto=".2s")
         product_fig.update_layout(height=360, yaxis_title="ECL", xaxis_title="")
         st.plotly_chart(product_fig, width="stretch")
-        migration_columns = [col for col in migration_matrix.columns if col != "Initial stage"]
+        migration_source_column = migration_matrix.columns[0]
+        migration_columns = [col for col in migration_matrix.columns if col != migration_source_column]
         migration_fig = px.bar(
             migration_matrix,
-            x="Initial stage",
+            x=migration_source_column,
             y=migration_columns,
-            title="Migration Stage initial / Stage recalcule",
+            title="Migration Stage precedent / Stage recalcule",
         )
         migration_fig.update_layout(height=360, yaxis_title="Nombre d'expositions", xaxis_title="")
         st.plotly_chart(migration_fig, width="stretch")

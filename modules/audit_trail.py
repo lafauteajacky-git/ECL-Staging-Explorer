@@ -38,6 +38,7 @@ def build_audit_trail(
     business_alerts: pd.DataFrame | None = None,
     client_discussion_points: list[str] | None = None,
     demo_profile: str | None = None,
+    staging_transition_summary: pd.DataFrame | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Build a detailed, Excel-friendly audit trail."""
     warnings = [
@@ -46,6 +47,7 @@ def build_audit_trail(
         "Scenarios macro appliques via multiplicateurs simples PD/LGD.",
         "Overlays appliques en pourcentage de l'ECL avant overlay.",
         "Pas de discounting des cash-flows dans le MVP.",
+        "Periodes de cure pedagogiques: 3 mois Stage 3 vers Stage 2, 6 mois Stage 2 vers Stage 1 et 12 mois pour un retour exceptionnel Stage 3 vers Stage 1.",
     ]
     run_summary = pd.DataFrame(
         [
@@ -100,4 +102,6 @@ def build_audit_trail(
         audit_trail["critical_business_alerts"] = business_alerts.loc[business_alerts["severity"].eq("Critical")].copy()
     if client_discussion_points is not None:
         audit_trail["client_discussion_points"] = pd.DataFrame({"discussion_point": client_discussion_points})
+    if staging_transition_summary is not None:
+        audit_trail["staging_transition_summary"] = staging_transition_summary.copy()
     return audit_trail

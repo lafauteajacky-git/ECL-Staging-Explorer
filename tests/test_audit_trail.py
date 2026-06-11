@@ -3,6 +3,7 @@ from datetime import datetime
 import pandas as pd
 
 from modules.audit_trail import build_audit_trail, generate_run_id
+from modules.reporting import STAGING_RULES
 
 
 def test_generate_run_id_contains_timestamp():
@@ -34,3 +35,13 @@ def test_build_audit_trail_returns_required_sections():
     assert "overlay_summary" in audit
     assert "methodological_warnings" in audit
     assert "run_id" in set(audit["run_summary"]["field"])
+
+
+def test_staging_audit_rules_cover_minimum_transitions():
+    transitions = {item["rule"] for item in STAGING_RULES}
+
+    assert "Stage 1 -> Stage 2" in transitions
+    assert "Stage 2 -> Stage 1" in transitions
+    assert "Stage 2 -> Stage 3" in transitions
+    assert "Stage 3 -> Stage 2" in transitions
+    assert "Stage 3 -> Stage 1" in transitions

@@ -17,17 +17,46 @@ CRITICAL_DQ_CODES = {"MISSING_RATING", "MISSING_PD", "MISSING_LGD", "INVALID_EAD
 
 
 STAGING_RULES = [
-    {"rule": "Stage 3", "threshold": "Default flag = True", "description": "Defaulted exposures are classified in Stage 3."},
-    {"rule": "Stage 3", "threshold": "DPD >= 90", "description": "Exposures 90 days past due or more are classified in Stage 3."},
-    {"rule": "Stage 2", "threshold": "DPD >= 30", "description": "Exposures 30 days past due or more are classified in Stage 2."},
     {
-        "rule": "Stage 2",
-        "threshold": "Current rating - origination rating >= 2",
-        "description": "A downgrade of at least two notches triggers Stage 2.",
+        "rule": "Stage 1 -> Stage 2",
+        "threshold": "SICR: DPD >= 30, rating downgrade >= 2, PD >= 2x origination, watchlist, forbearance or macro-sector signal",
+        "description": "A significant increase in credit risk triggers Stage 2.",
     },
-    {"rule": "Stage 2", "threshold": "Forbearance flag = True", "description": "Forborne exposures are classified in Stage 2."},
-    {"rule": "Stage 2", "threshold": "Watchlist flag = True", "description": "Watchlist exposures are classified in Stage 2."},
-    {"rule": "Stage 1", "threshold": "No trigger", "description": "All other exposures remain in Stage 1."},
+    {
+        "rule": "Stage 2 -> Stage 3",
+        "threshold": "Default / credit-impaired: DPD >= 90, default, UTP, probable bankruptcy or distressed restructuring",
+        "description": "Any current default or credit-impaired event triggers Stage 3.",
+    },
+    {
+        "rule": "Stage 3 -> Stage 2",
+        "threshold": "No default + cure >= 3 months",
+        "description": "The exposure leaves Stage 3 after the minimum cure period but remains in Stage 2 under residual prudence.",
+    },
+    {
+        "rule": "Stage 3 -> Stage 1",
+        "threshold": "No default + no SICR + normalized payments + cure >= 12 months + strong justification",
+        "description": "Exceptional direct return to Stage 1; deliberately rare in the synthetic portfolio.",
+    },
+    {
+        "rule": "Stage 2 -> Stage 1",
+        "threshold": "No SICR + DPD < 30 + no sensitive watchlist/forbearance + normalized payments + probation >= 6 months",
+        "description": "The exposure returns to Stage 1 only after risk normalization and completion of probation.",
+    },
+    {
+        "rule": "Stage 3 maintained",
+        "threshold": "Default remains, cure < 3 months or exit criteria are not fully evidenced",
+        "description": "Stage 3 is maintained while credit impairment persists or the documented exit criteria are incomplete.",
+    },
+    {
+        "rule": "Stage 2 maintained",
+        "threshold": "SICR remains or probation < 6 months",
+        "description": "Stage 2 is maintained until SICR disappears and probation is completed.",
+    },
+    {
+        "rule": "Stage 1 maintained",
+        "threshold": "No default and no SICR",
+        "description": "Performing exposures without significant deterioration remain in Stage 1.",
+    },
 ]
 
 
@@ -135,11 +164,13 @@ def _format_review_reason(row: pd.Series) -> str:
 
 
 def build_migration_matrix(ecl_portfolio: pd.DataFrame) -> pd.DataFrame:
-    """Build a Stage initial / Stage recalculated migration matrix."""
+    """Build a previous-stage / recalculated-stage migration matrix."""
+    source_column = "previous_stage" if "previous_stage" in ecl_portfolio else "initial_stage"
+    source_label = "Previous stage" if source_column == "previous_stage" else "Initial stage"
     return pd.crosstab(
-        ecl_portfolio["initial_stage"],
+        ecl_portfolio[source_column],
         ecl_portfolio["stage"],
-        rownames=["Initial stage"],
+        rownames=[source_label],
         colnames=["Recalculated stage"],
         dropna=False,
     ).reset_index()

@@ -12,6 +12,19 @@ Les distributions ne sont pas calibrees sur des donnees bancaires reelles.
 
 ## Regles de staging simplifiees
 
+Le demonstrateur distingue le stage a l'origine (`initial_stage`), le stage a la
+cloture precedente (`previous_stage`) et le stage recalcule. Les transitions
+utilisent des periodes de cure pedagogiques :
+
+- Stage 3 vers Stage 2 : disparition du defaut et cure minimale de 3 mois ;
+- Stage 2 vers Stage 1 : disparition du SICR, paiements normalises et probation minimale de 6 mois ;
+- Stage 3 vers Stage 1 : cas exceptionnel, cure de 12 mois, absence de SICR et justification renforcee ;
+- Stage 2 vers Stage 3 : defaut ou credit-impaired, notamment 90 DPD, UTP, faillite probable ou restructuration distressed ;
+- Stage 1 vers Stage 2 : SICR via DPD, degradation de rating, hausse de PD, watchlist, forbearance ou signal macro-sectoriel.
+
+Ces durees sont des hypotheses de demonstration et doivent etre remplacees par
+les politiques internes et exigences applicables dans toute implementation reelle.
+
 Les regles appliquees sont volontairement simples :
 
 - Stage 3 si defaut ou DPD >= 90.

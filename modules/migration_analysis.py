@@ -71,13 +71,14 @@ def build_stage_transition_matrix(
     measure: str = "count",
     stage_reasons: list[str] | None = None,
 ) -> pd.DataFrame:
-    """Build a row-normalized initial/final stage matrix with reason filtering."""
+    """Build a row-normalized prior/final stage matrix with reason filtering."""
     filtered = portfolio.copy()
     if stage_reasons is not None:
         filtered = filtered.loc[filtered["stage_reason"].isin(stage_reasons)].copy()
+    source_stage = "previous_stage" if "previous_stage" in filtered.columns else "initial_stage"
     values = None if measure == "count" else pd.to_numeric(filtered["ead"], errors="coerce").fillna(0)
     matrix = pd.crosstab(
-        filtered["initial_stage"],
+        filtered[source_stage],
         filtered["stage"],
         values=values,
         aggfunc="sum" if values is not None else None,
@@ -86,7 +87,7 @@ def build_stage_transition_matrix(
     ).fillna(0)
     stage_labels = ["Stage 1", "Stage 2", "Stage 3"]
     matrix = matrix.reindex(index=stage_labels, columns=stage_labels, fill_value=0)
-    matrix.index.name = "Stage initial"
+    matrix.index.name = "Stage precedent" if source_stage == "previous_stage" else "Stage initial"
     return matrix
 
 

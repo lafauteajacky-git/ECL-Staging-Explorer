@@ -30,6 +30,28 @@ def test_cre_stress_profile_increases_real_estate_share():
     assert (portfolio["sector"] == "Real estate").mean() > 0.35
 
 
+def test_generated_portfolio_contains_staging_transition_fields():
+    portfolio = generate_demo_portfolio(
+        profile="Balanced Portfolio",
+        n_exposures=100,
+        seed=7,
+    )
+
+    expected_fields = {
+        "previous_stage",
+        "origination_pd_12m",
+        "sicr_flag",
+        "credit_impaired_flag",
+        "unlikely_to_pay_flag",
+        "bankruptcy_flag",
+        "distressed_restructuring_flag",
+        "payment_normalized_flag",
+        "cure_period_months",
+        "probation_required_months",
+    }
+    assert expected_fields.issubset(portfolio.columns)
+
+
 def test_all_data_quality_levels_preserve_portfolio_size():
     for level in DATA_QUALITY_LEVELS:
         portfolio = generate_demo_portfolio(

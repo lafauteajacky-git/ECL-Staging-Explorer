@@ -43,7 +43,7 @@ def run_business_consistency_checks(ecl_portfolio: pd.DataFrame) -> pd.DataFrame
     _append_alerts(
         alerts,
         ecl_portfolio,
-        _stage(ecl_portfolio, "Stage 1") & (_bool_col(ecl_portfolio, "default_flag") | (_num_col(ecl_portfolio, "days_past_due") >= 90)),
+        _stage(ecl_portfolio, "Stage 1") & _has_default_trigger(ecl_portfolio),
         CRITICAL_SEVERITY,
         "STAGE1_DEFAULT_OR_90DPD",
         "Stage 1 avec defaut ou DPD >= 90",
@@ -83,7 +83,13 @@ def run_business_consistency_checks(ecl_portfolio: pd.DataFrame) -> pd.DataFrame
     _append_alerts(
         alerts,
         ecl_portfolio,
-        _stage(ecl_portfolio, "Stage 3") & ~(_bool_col(ecl_portfolio, "default_flag") | (_num_col(ecl_portfolio, "days_past_due") >= 90)),
+        _stage(ecl_portfolio, "Stage 3")
+        & ~(
+            _has_default_trigger(ecl_portfolio)
+            | ecl_portfolio.get("probation_status", pd.Series("", index=ecl_portfolio.index))
+            .astype(str)
+            .str.contains("cure in progress", case=False, na=False)
+        ),
         CRITICAL_SEVERITY,
         "STAGE3_WITHOUT_DEFAULT_TRIGGER",
         "Stage 3 sans defaut, DPD >= 90 ou indicateur de depreciation",
@@ -272,13 +278,25 @@ def _num_col(df: pd.DataFrame, column: str) -> pd.Series:
     return pd.to_numeric(df.get(column, pd.Series(np.nan, index=df.index)), errors="coerce")
 
 
+def _has_default_trigger(df: pd.DataFrame) -> pd.Series:
+    return (
+        _bool_col(df, "default_flag")
+        | _bool_col(df, "credit_impaired_flag")
+        | _bool_col(df, "unlikely_to_pay_flag")
+        | _bool_col(df, "bankruptcy_flag")
+        | _bool_col(df, "distressed_restructuring_flag")
+        | (_num_col(df, "days_past_due") >= 90)
+    )
+
+
 def _has_stage2_trigger(df: pd.DataFrame) -> pd.Series:
     stage_reason = df.get("stage_reason", pd.Series("", index=df.index)).fillna("").astype(str).str.lower()
-    explicit_reason = stage_reason.str.contains("dpd|rating|forbearance|watchlist|30|sicr")
+    explicit_reason = stage_reason.str.contains("dpd|rating|forbearance|watchlist|30|sicr|probation|cure")
     calculated_reason = (
         (_num_col(df, "days_past_due") >= 30)
         | ((_num_col(df, "current_rating") - _num_col(df, "origination_rating")) >= 2)
         | _bool_col(df, "forbearance_flag")
         | _bool_col(df, "watchlist_flag")
+        | _bool_col(df, "current_sicr_trigger")
     )
     return explicit_reason | calculated_reason
