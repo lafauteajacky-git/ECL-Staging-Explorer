@@ -738,9 +738,97 @@ def render_kpi_card(label: str, value: str, caption: str = "") -> None:
     )
 
 
+def default_demo_parameters() -> dict:
+    """Return a fresh copy of the default demonstration settings."""
+    return {
+        "source": "Generer un portefeuille synthetique",
+        "demo_profile": "Balanced Portfolio",
+        "data_quality_level": DATA_QUALITY_LEVELS[0],
+        "n_exposures": 1_000,
+        "seed": 42,
+        "uploaded_file": None,
+        "scenario_config": {
+            scenario: dict(values) for scenario, values in DEFAULT_SCENARIOS.items()
+        },
+        "enabled_overlays": [overlay["name"] for overlay in PREDEFINED_OVERLAYS],
+    }
+
+
+def get_persisted_demo_parameters() -> dict:
+    """Return settings stored independently from temporary Streamlit widgets."""
+    if "persisted_demo_parameters" not in st.session_state:
+        st.session_state["persisted_demo_parameters"] = default_demo_parameters()
+    return st.session_state["persisted_demo_parameters"]
+
+
+def restore_demo_widget_state(parameters: dict) -> None:
+    """Restore widget keys after Streamlit removed widgets on another page."""
+    widget_values = {
+        "demo_source": parameters["source"],
+        "demo_profile_control": parameters["demo_profile"],
+        "demo_data_quality_level": parameters["data_quality_level"],
+        "demo_exposure_count": parameters["n_exposures"],
+        "demo_seed": parameters["seed"],
+        "demo_enabled_overlays": parameters["enabled_overlays"],
+    }
+    for scenario, values in parameters["scenario_config"].items():
+        widget_values[f"{scenario.lower()}_weight"] = values["weight"] * 100
+        widget_values[f"{scenario.lower()}_pd_multiplier"] = values["pd_multiplier"]
+        widget_values[f"{scenario.lower()}_lgd_multiplier"] = values["lgd_multiplier"]
+    for key, value in widget_values.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
+def reset_demo_parameters() -> None:
+    """Reset persisted settings and force regeneration of the default portfolio."""
+    defaults = default_demo_parameters()
+    st.session_state["persisted_demo_parameters"] = defaults
+    widget_keys = [
+        "demo_source",
+        "demo_profile_control",
+        "demo_data_quality_level",
+        "demo_exposure_count",
+        "demo_seed",
+        "demo_uploaded_file",
+        "demo_enabled_overlays",
+    ]
+    for scenario in DEFAULT_SCENARIOS:
+        widget_keys.extend(
+            [
+                f"{scenario.lower()}_weight",
+                f"{scenario.lower()}_pd_multiplier",
+                f"{scenario.lower()}_lgd_multiplier",
+            ]
+        )
+    for key in widget_keys:
+        st.session_state.pop(key, None)
+    for key in [
+        "portfolio",
+        "demo_profile",
+        "data_quality_level",
+        "portfolio_generation_summary",
+        "run_datetime",
+        "run_id",
+    ]:
+        st.session_state.pop(key, None)
+
+
 def render_demo_parameters():
     """Render all demo controls in the main home page."""
-    st.markdown("### Parametres de la demonstration")
+    parameters = get_persisted_demo_parameters()
+    restore_demo_widget_state(parameters)
+
+    title_col, reset_col = st.columns([4, 1])
+    with title_col:
+        st.markdown("### Parametres de la demonstration")
+    with reset_col:
+        st.button(
+            "Reinitialiser",
+            on_click=reset_demo_parameters,
+            help="Restaurer tous les parametres et regenerer le portefeuille par defaut.",
+            use_container_width=True,
+        )
     st.caption("Configurez le portefeuille, les hypotheses macroeconomiques et les overlays avant d'explorer les resultats.")
 
     with st.expander("1. Portefeuille de demonstration", expanded=True):
@@ -816,6 +904,19 @@ def render_demo_parameters():
             key="demo_enabled_overlays",
         )
 
+    st.session_state["persisted_demo_parameters"] = {
+        "source": source,
+        "demo_profile": demo_profile,
+        "data_quality_level": data_quality_level,
+        "n_exposures": int(n_exposures),
+        "seed": int(seed),
+        "uploaded_file": uploaded_file,
+        "scenario_config": {
+            scenario: dict(values) for scenario, values in scenario_config.items()
+        },
+        "enabled_overlays": list(enabled_overlays),
+    }
+
     return (
         source,
         demo_profile,
@@ -831,27 +932,18 @@ def render_demo_parameters():
 
 def load_demo_parameters_from_state():
     """Load persisted demo settings when controls are not rendered."""
-    source = st.session_state.get("demo_source", "Generer un portefeuille synthetique")
-    demo_profile = st.session_state.get("demo_profile_control", "Balanced Portfolio")
-    data_quality_level = st.session_state.get("demo_data_quality_level", DATA_QUALITY_LEVELS[0])
-    n_exposures = int(st.session_state.get("demo_exposure_count", 1_000))
-    seed = int(st.session_state.get("demo_seed", 42))
-    uploaded_file = st.session_state.get("demo_uploaded_file")
-    scenario_config = {}
-    for scenario, defaults in DEFAULT_SCENARIOS.items():
-        scenario_config[scenario] = {
-            "weight": float(st.session_state.get(f"{scenario.lower()}_weight", defaults["weight"] * 100)) / 100,
-            "pd_multiplier": float(
-                st.session_state.get(f"{scenario.lower()}_pd_multiplier", defaults["pd_multiplier"])
-            ),
-            "lgd_multiplier": float(
-                st.session_state.get(f"{scenario.lower()}_lgd_multiplier", defaults["lgd_multiplier"])
-            ),
-        }
-    enabled_overlays = st.session_state.get(
-        "demo_enabled_overlays",
-        [overlay["name"] for overlay in PREDEFINED_OVERLAYS],
-    )
+    parameters = get_persisted_demo_parameters()
+    source = parameters["source"]
+    demo_profile = parameters["demo_profile"]
+    data_quality_level = parameters["data_quality_level"]
+    n_exposures = int(parameters["n_exposures"])
+    seed = int(parameters["seed"])
+    uploaded_file = parameters.get("uploaded_file")
+    scenario_config = {
+        scenario: dict(values)
+        for scenario, values in parameters["scenario_config"].items()
+    }
+    enabled_overlays = list(parameters["enabled_overlays"])
     return (
         source,
         demo_profile,
