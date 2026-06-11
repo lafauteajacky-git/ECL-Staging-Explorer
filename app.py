@@ -324,6 +324,81 @@ def apply_auria_theme() -> None:
             line-height: 1.45;
         }
 
+        .migration-kpi-panel {
+            margin: 18px 0 26px;
+            padding: 24px 26px;
+            border: 1px solid rgba(11, 43, 70, 0.18);
+            border-radius: 18px;
+            color: #ffffff;
+            background: linear-gradient(135deg, #0b2b46, #174866);
+            box-shadow: 0 18px 44px rgba(11, 43, 70, 0.12);
+        }
+
+        .migration-kpi-kicker {
+            margin-bottom: 17px;
+            color: #f1a986;
+            font-size: 0.72rem;
+            font-weight: 900;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+        }
+
+        .migration-kpi-grid {
+            display: grid;
+            gap: 0;
+        }
+
+        .migration-kpi-grid-primary {
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+        }
+
+        .migration-kpi-grid-secondary {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.16);
+        }
+
+        .migration-kpi-item {
+            min-width: 0;
+            min-height: 92px;
+            padding: 2px 18px;
+            border-right: 1px solid rgba(255, 255, 255, 0.14);
+        }
+
+        .migration-kpi-item:first-child {
+            padding-left: 0;
+        }
+
+        .migration-kpi-item:last-child {
+            padding-right: 0;
+            border-right: 0;
+        }
+
+        .migration-kpi-label {
+            min-height: 2.1em;
+            color: rgba(255, 255, 255, 0.68);
+            font-size: 0.68rem;
+            font-weight: 850;
+            line-height: 1.35;
+            text-transform: uppercase;
+        }
+
+        .migration-kpi-value {
+            margin: 7px 0 6px;
+            color: #ffffff;
+            font-size: clamp(1.55rem, 2.2vw, 2.15rem);
+            font-weight: 850;
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        .migration-kpi-caption {
+            color: rgba(255, 255, 255, 0.70);
+            font-size: 0.75rem;
+            line-height: 1.4;
+        }
+
         @media (max-width: 1100px) {
             .auria-main-hero-grid {
                 grid-template-columns: minmax(0, 1fr) !important;
@@ -340,6 +415,16 @@ def apply_auria_theme() -> None:
             .storyline-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
+
+            .migration-kpi-grid-primary {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                row-gap: 20px;
+            }
+
+            .migration-kpi-grid-secondary {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                row-gap: 20px;
+            }
         }
 
         @media (max-width: 720px) {
@@ -349,6 +434,22 @@ def apply_auria_theme() -> None:
 
             .storyline-grid {
                 grid-template-columns: minmax(0, 1fr);
+            }
+
+            .migration-kpi-grid-primary,
+            .migration-kpi-grid-secondary {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .migration-kpi-item {
+                min-height: auto;
+                padding: 14px 0;
+                border-right: 0;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+            }
+
+            .migration-kpi-item:last-child {
+                border-bottom: 0;
             }
         }
 
@@ -1864,7 +1965,7 @@ def render_transition_heatmap(
             type="category",
             categoryorder="array",
             categoryarray=list(matrix.columns),
-            side="bottom",
+            side="top",
         ),
         yaxis=dict(
             type="category",
@@ -1874,7 +1975,7 @@ def render_transition_heatmap(
         ),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=30, r=20, t=65, b=45),
+        margin=dict(l=30, r=20, t=105, b=30),
     )
     st.plotly_chart(
         figure,
@@ -1892,63 +1993,46 @@ def render_staging_migration_analysis(staged: pd.DataFrame) -> None:
     )
 
     metrics = calculate_rating_migration_metrics(staged)
-    headline_cols = st.columns(5)
-    with headline_cols[0]:
-        render_kpi_card(
-            "Stabilite",
-            f"{metrics['stability_rate']:.1%}",
-            f"{metrics['stability_ead_rate']:.1%} de l'EAD stable",
-        )
-    with headline_cols[1]:
-        render_kpi_card(
-            "Degradation",
-            f"{metrics['degradation_rate']:.1%}",
-            f"{metrics['degradation_ead_rate']:.1%} de l'EAD",
-        )
-    with headline_cols[2]:
-        render_kpi_card(
-            "Amelioration",
-            f"{metrics['improvement_rate']:.1%}",
-            f"{metrics['improvement_ead_rate']:.1%} de l'EAD",
-        )
-    with headline_cols[3]:
-        render_kpi_card(
-            "Migration nette",
-            f"{metrics['net_migration_rate']:+.1%}",
-            "Degradation moins amelioration",
-        )
-    with headline_cols[4]:
-        render_kpi_card(
-            "Migration moyenne",
-            f"{metrics['average_notch_migration']:+.2f}",
-            "Crans par exposition",
+    primary_metrics = [
+        ("Stabilite", f"{metrics['stability_rate']:.1%}", f"{metrics['stability_ead_rate']:.1%} de l'EAD stable"),
+        ("Degradation", f"{metrics['degradation_rate']:.1%}", f"{metrics['degradation_ead_rate']:.1%} de l'EAD"),
+        ("Amelioration", f"{metrics['improvement_rate']:.1%}", f"{metrics['improvement_ead_rate']:.1%} de l'EAD"),
+        ("Migration nette", f"{metrics['net_migration_rate']:+.1%}", "Degradation moins amelioration"),
+        ("Migration moyenne", f"{metrics['average_notch_migration']:+.2f}", "Crans par exposition"),
+    ]
+    secondary_metrics = [
+        ("Degradation 1 cran", f"{metrics['one_notch_degradation_rate']:.1%}", "Migration moderee"),
+        ("Degradation >= 2 crans", f"{metrics['two_plus_degradation_rate']:.1%}", "Signal de deterioration"),
+        ("Vers grades sensibles", f"{metrics['worst_grade_degradation_rate']:.1%}", "Notes courantes 8 a 10"),
+        ("Vers defaut", f"{metrics['default_migration_rate']:.1%}", f"{metrics['default_migration_ead_rate']:.1%} de l'EAD"),
+    ]
+
+    def metric_markup(metric: tuple[str, str, str]) -> str:
+        label, value, caption = metric
+        return (
+            '<div class="migration-kpi-item">'
+            f'<div class="migration-kpi-label">{label}</div>'
+            f'<div class="migration-kpi-value">{value}</div>'
+            f'<div class="migration-kpi-caption">{caption}</div>'
+            "</div>"
         )
 
-    risk_cols = st.columns(4)
-    with risk_cols[0]:
-        render_kpi_card(
-            "Degradation 1 cran",
-            f"{metrics['one_notch_degradation_rate']:.1%}",
-            "Migration moderee",
-        )
-    with risk_cols[1]:
-        render_kpi_card(
-            "Degradation >= 2",
-            f"{metrics['two_plus_degradation_rate']:.1%}",
-            "Signal de deterioration",
-        )
-    with risk_cols[2]:
-        render_kpi_card(
-            "Vers grades sensibles",
-            f"{metrics['worst_grade_degradation_rate']:.1%}",
-            "Notes courantes 8 a 10",
-        )
-    with risk_cols[3]:
-        render_kpi_card(
-            "Vers defaut",
-            f"{metrics['default_migration_rate']:.1%}",
-            f"{metrics['default_migration_ead_rate']:.1%} de l'EAD",
-        )
+    st.markdown(
+        dedent(
+            f"""
+            <section class="migration-kpi-panel">
+                <div class="migration-kpi-kicker">Lecture synthetique des migrations</div>
+                <div class="migration-kpi-grid migration-kpi-grid-primary">
+                    {''.join(metric_markup(metric) for metric in primary_metrics)}
+                </div>
+                <div class="migration-kpi-grid migration-kpi-grid-secondary">
+                    {''.join(metric_markup(metric) for metric in secondary_metrics)}
+                </div>
+            </section>
+            """
+        ).strip(),
+        unsafe_allow_html=True,
+    )
 
     measure_label = st.radio(
         "Expression des matrices",
