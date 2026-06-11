@@ -53,3 +53,6 @@ desktop.ini
 *token*
 *password*
 *credentials*
+
+outputs/
+scripts/
