@@ -1545,6 +1545,7 @@ def main() -> None:
                 "stage_comment",
                 "days_past_due",
                 "origination_rating",
+                "previous_rating",
                 "current_rating",
                 "origination_pd_12m",
                 "pd_12m",
@@ -2410,11 +2411,34 @@ def render_staging_migration_analysis(staged: pd.DataFrame) -> None:
     """Render rating and stage transition analytics."""
     st.subheader("Staging et analyse des migrations")
     st.write(
-        "Analyse des mouvements entre l'octroi et la date courante, en nombre d'expositions "
-        "ou en EAD. Une hausse de note correspond a une deterioration sur l'echelle synthetique 1 a 10."
+        "Analyse des mouvements entre la reference selectionnee et la date courante, "
+        "en nombre d'expositions ou en EAD. Une hausse de note correspond a une "
+        "deterioration sur l'echelle synthetique 1 a 10."
     )
 
-    metrics = calculate_rating_migration_metrics(staged)
+    rating_reference_label = st.radio(
+        "Reference de la matrice de notation",
+        options=["Note a l'octroi vs note courante", "Note precedente vs note courante"],
+        index=0,
+        horizontal=True,
+        key="rating_transition_reference",
+        help=(
+            "La note a l'octroi mesure la deterioration depuis l'origine. "
+            "La note precedente mesure la migration entre deux clotures successives."
+        ),
+    )
+    source_rating = (
+        "previous_rating"
+        if rating_reference_label == "Note precedente vs note courante"
+        else "origination_rating"
+    )
+    source_rating_title = (
+        "Note precedente"
+        if source_rating == "previous_rating"
+        else "Note a l'octroi"
+    )
+
+    metrics = calculate_rating_migration_metrics(staged, source_rating=source_rating)
     primary_metrics = [
         ("Stabilite", f"{metrics['stability_rate']:.1%}", f"{metrics['stability_ead_rate']:.1%} de l'EAD stable"),
         ("Degradation", f"{metrics['degradation_rate']:.1%}", f"{metrics['degradation_ead_rate']:.1%} de l'EAD"),
@@ -2470,12 +2494,16 @@ def render_staging_migration_analysis(staged: pd.DataFrame) -> None:
         "La colonne Defaut regroupe les expositions avec default flag, DPD >= 90 jours "
         "ou classement final en Stage 3."
     )
-    rating_matrix = build_rating_transition_matrix(staged, measure=measure)
+    rating_matrix = build_rating_transition_matrix(
+        staged,
+        measure=measure,
+        source_rating=source_rating,
+    )
     render_transition_heatmap(
         rating_matrix,
-        f"Note a l'octroi vers note courante - {measure_label}",
+        f"{source_rating_title} vers note courante - {measure_label}",
         "Note courante",
-        "Note a l'octroi",
+        source_rating_title,
     )
 
     st.markdown("#### Matrice de migration des stages")
@@ -2525,7 +2553,7 @@ def render_staging_migration_analysis(staged: pd.DataFrame) -> None:
         st.plotly_chart(reason_chart, width="stretch")
 
     st.markdown("#### Nature des migrations de rating")
-    breakdown = build_migration_breakdown(staged)
+    breakdown = build_migration_breakdown(staged, source_rating=source_rating)
     breakdown_long = breakdown.melt(
         id_vars=["rating_migration_type"],
         value_vars=["exposure_share", "ead_share"],
@@ -2556,7 +2584,11 @@ def render_staging_migration_analysis(staged: pd.DataFrame) -> None:
     )
     st.plotly_chart(breakdown_figure, width="stretch")
 
-    product_migration = build_average_migration_by_dimension(staged, "product_type")
+    product_migration = build_average_migration_by_dimension(
+        staged,
+        "product_type",
+        source_rating=source_rating,
+    )
     product_long = product_migration.melt(
         id_vars=["product_type"],
         value_vars=["average_notch_migration", "ead_weighted_notch_migration"],
@@ -2599,7 +2631,10 @@ def render_staging_migration_analysis(staged: pd.DataFrame) -> None:
         "Top 10 des deteriorations d'au moins deux crans ou migrations vers le defaut, "
         "classees par severite puis par EAD."
     )
-    top_migrations = build_top_strong_migrations(staged)
+    top_migrations = build_top_strong_migrations(
+        staged,
+        source_rating=source_rating,
+    )
     if top_migrations.empty:
         st.success("Aucune migration forte detectee.")
     else:
@@ -2627,6 +2662,7 @@ def render_staging_migration_analysis(staged: pd.DataFrame) -> None:
                     "stage_comment",
                     "days_past_due",
                     "origination_rating",
+                    "previous_rating",
                     "current_rating",
                     "ead",
                 ]

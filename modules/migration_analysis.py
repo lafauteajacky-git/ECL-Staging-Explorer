@@ -10,10 +10,15 @@ DEFAULT_LABEL = "Defaut"
 WORST_GRADE_THRESHOLD = 8
 
 
-def prepare_rating_migrations(portfolio: pd.DataFrame) -> pd.DataFrame:
+def prepare_rating_migrations(
+    portfolio: pd.DataFrame,
+    source_rating: str = "origination_rating",
+) -> pd.DataFrame:
     """Add rating migration classifications to a staged portfolio."""
+    if source_rating not in portfolio.columns:
+        raise ValueError(f"Unknown source rating: {source_rating}")
     result = portfolio.copy()
-    origination = pd.to_numeric(result["origination_rating"], errors="coerce")
+    reference = pd.to_numeric(result[source_rating], errors="coerce")
     current = pd.to_numeric(result["current_rating"], errors="coerce")
     current_default = (
         result["default_flag"].fillna(False).astype(bool)
@@ -21,9 +26,11 @@ def prepare_rating_migrations(portfolio: pd.DataFrame) -> pd.DataFrame:
         | result.get("stage", pd.Series("", index=result.index)).eq("Stage 3")
     )
 
-    result["rating_change_notches"] = current - origination
+    result["rating_reference_column"] = source_rating
+    result["reference_rating"] = reference
+    result["rating_change_notches"] = current - reference
     result["current_rating_bucket"] = current.map(_format_rating).where(~current_default, DEFAULT_LABEL)
-    result["origination_rating_bucket"] = origination.map(_format_rating)
+    result["reference_rating_bucket"] = reference.map(_format_rating)
     result["rating_migration_type"] = np.select(
         [
             current_default,
@@ -48,12 +55,13 @@ def prepare_rating_migrations(portfolio: pd.DataFrame) -> pd.DataFrame:
 def build_rating_transition_matrix(
     portfolio: pd.DataFrame,
     measure: str = "count",
+    source_rating: str = "origination_rating",
 ) -> pd.DataFrame:
     """Build a row-normalized rating transition matrix in count or EAD."""
-    migrations = prepare_rating_migrations(portfolio)
+    migrations = prepare_rating_migrations(portfolio, source_rating)
     values = None if measure == "count" else pd.to_numeric(migrations["ead"], errors="coerce").fillna(0)
     matrix = pd.crosstab(
-        migrations["origination_rating_bucket"],
+        migrations["reference_rating_bucket"],
         migrations["current_rating_bucket"],
         values=values,
         aggfunc="sum" if values is not None else None,
@@ -62,7 +70,11 @@ def build_rating_transition_matrix(
     ).fillna(0)
     rating_labels = [str(rating) for rating in range(1, 11)]
     matrix = matrix.reindex(index=rating_labels, columns=rating_labels + [DEFAULT_LABEL], fill_value=0)
-    matrix.index.name = "Note initiale"
+    matrix.index.name = (
+        "Note a l'octroi"
+        if source_rating == "origination_rating"
+        else "Note precedente"
+    )
     return matrix
 
 
@@ -91,10 +103,13 @@ def build_stage_transition_matrix(
     return matrix
 
 
-def calculate_rating_migration_metrics(portfolio: pd.DataFrame) -> dict[str, float | int]:
+def calculate_rating_migration_metrics(
+    portfolio: pd.DataFrame,
+    source_rating: str = "origination_rating",
+) -> dict[str, float | int]:
     """Calculate count- and EAD-based migration indicators."""
-    migrations = prepare_rating_migrations(portfolio)
-    valid = migrations["origination_rating"].notna() & migrations["current_rating"].notna()
+    migrations = prepare_rating_migrations(portfolio, source_rating)
+    valid = migrations["reference_rating"].notna() & migrations["current_rating"].notna()
     migrations = migrations.loc[valid].copy()
     if migrations.empty:
         return _empty_metrics()
@@ -113,7 +128,7 @@ def calculate_rating_migration_metrics(portfolio: pd.DataFrame) -> dict[str, flo
 
     average_change = migrations["rating_change_notches"].where(
         ~current_default,
-        11 - pd.to_numeric(migrations["origination_rating"], errors="coerce"),
+        11 - migrations["reference_rating"],
     )
     degradation_rate = float(degraded.mean())
     improvement_rate = float(improved.mean())
@@ -137,9 +152,12 @@ def calculate_rating_migration_metrics(portfolio: pd.DataFrame) -> dict[str, flo
     }
 
 
-def build_migration_breakdown(portfolio: pd.DataFrame) -> pd.DataFrame:
+def build_migration_breakdown(
+    portfolio: pd.DataFrame,
+    source_rating: str = "origination_rating",
+) -> pd.DataFrame:
     """Summarize migration categories in count and EAD."""
-    migrations = prepare_rating_migrations(portfolio)
+    migrations = prepare_rating_migrations(portfolio, source_rating)
     migrations["ead"] = pd.to_numeric(migrations["ead"], errors="coerce").fillna(0).clip(lower=0)
     summary = (
         migrations.groupby("rating_migration_type", as_index=False)
@@ -155,15 +173,16 @@ def build_migration_breakdown(portfolio: pd.DataFrame) -> pd.DataFrame:
 def build_average_migration_by_dimension(
     portfolio: pd.DataFrame,
     dimension: str = "product_type",
+    source_rating: str = "origination_rating",
 ) -> pd.DataFrame:
     """Calculate average notch migration by portfolio dimension."""
     if dimension not in portfolio.columns:
         raise ValueError(f"Unknown migration dimension: {dimension}")
-    migrations = prepare_rating_migrations(portfolio)
+    migrations = prepare_rating_migrations(portfolio, source_rating)
     current_default = migrations["rating_migration_type"].eq("Migration vers defaut")
     migrations["migration_notches_adjusted"] = migrations["rating_change_notches"].where(
         ~current_default,
-        11 - pd.to_numeric(migrations["origination_rating"], errors="coerce"),
+        11 - migrations["reference_rating"],
     )
     migrations["ead"] = pd.to_numeric(migrations["ead"], errors="coerce").fillna(0).clip(lower=0)
 
@@ -192,9 +211,13 @@ def build_average_migration_by_dimension(
     return summary.sort_values("ead_weighted_notch_migration", ascending=False).reset_index(drop=True)
 
 
-def build_top_strong_migrations(portfolio: pd.DataFrame, n: int = 10) -> pd.DataFrame:
+def build_top_strong_migrations(
+    portfolio: pd.DataFrame,
+    n: int = 10,
+    source_rating: str = "origination_rating",
+) -> pd.DataFrame:
     """Return the largest adverse rating migrations, prioritizing EAD."""
-    migrations = prepare_rating_migrations(portfolio)
+    migrations = prepare_rating_migrations(portfolio, source_rating)
     migrations["migration_magnitude"] = migrations["rating_change_notches"].abs()
     default_mask = migrations["rating_migration_type"].eq("Migration vers defaut")
     adverse = migrations.loc[
@@ -202,7 +225,7 @@ def build_top_strong_migrations(portfolio: pd.DataFrame, n: int = 10) -> pd.Data
     ].copy()
     adverse["migration_sort"] = np.where(
         default_mask.loc[adverse.index],
-        100 + pd.to_numeric(adverse["origination_rating"], errors="coerce"),
+        100 + adverse["reference_rating"],
         adverse["rating_change_notches"],
     )
     columns = [
@@ -213,6 +236,8 @@ def build_top_strong_migrations(portfolio: pd.DataFrame, n: int = 10) -> pd.Data
         "country",
         "ead",
         "origination_rating",
+        "previous_rating",
+        "reference_rating",
         "current_rating_bucket",
         "rating_change_notches",
         "rating_migration_type",
@@ -224,9 +249,10 @@ def build_top_strong_migrations(portfolio: pd.DataFrame, n: int = 10) -> pd.Data
         "stage",
         "stage_reason",
     ]
+    available_columns = [column for column in columns if column in adverse.columns]
     return (
         adverse.sort_values(["migration_sort", "ead"], ascending=[False, False])
-        .head(n)[columns]
+        .head(n)[available_columns]
         .reset_index(drop=True)
     )
 

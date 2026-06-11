@@ -22,6 +22,7 @@ def build_migration_portfolio():
             "country": ["FR", "FR", "DE", "ES", "IT"],
             "ead": [100.0, 200.0, 300.0, 400.0, 500.0],
             "origination_rating": [1, 2, 3, 4, 5],
+            "previous_rating": [1, 2, 4, 3, 6],
             "current_rating": [1, 3, 5, 2, 7],
             "pd_12m": [0.01, 0.02, 0.05, 0.01, 0.20],
             "pd_lifetime": [0.03, 0.08, 0.15, 0.04, 0.60],
@@ -56,6 +57,17 @@ def test_rating_matrix_can_be_expressed_as_ead_share():
     assert math.isclose(matrix.loc["5", DEFAULT_LABEL], 1.0)
 
 
+def test_rating_matrix_can_use_previous_rating_as_reference():
+    matrix = build_rating_transition_matrix(
+        build_migration_portfolio(),
+        measure="count",
+        source_rating="previous_rating",
+    )
+
+    assert matrix.index.name == "Note precedente"
+    assert math.isclose(matrix.loc["4", "5"], 1.0)
+
+
 def test_stage_matrix_filters_stage_reasons():
     portfolio = build_migration_portfolio()
     matrix = build_stage_transition_matrix(
@@ -79,6 +91,16 @@ def test_rating_migration_metrics_cover_count_and_ead():
     assert math.isclose(metrics["default_migration_ead_rate"], 500 / 1500)
     assert math.isclose(metrics["degradation_ead_rate"], 1000 / 1500)
     assert math.isclose(metrics["improvement_ead_rate"], 400 / 1500)
+
+
+def test_rating_metrics_change_with_previous_rating_reference():
+    metrics = calculate_rating_migration_metrics(
+        build_migration_portfolio(),
+        source_rating="previous_rating",
+    )
+
+    assert math.isclose(metrics["stability_rate"], 0.20)
+    assert metrics["average_notch_migration"] != 0
 
 
 def test_top_strong_migrations_contains_default_and_two_notch_downgrade():

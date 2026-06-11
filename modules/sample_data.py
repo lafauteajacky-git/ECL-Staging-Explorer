@@ -39,6 +39,7 @@ DATA_QUALITY_LEVEL_DESCRIPTIONS = {
 }
 STAGING_TRANSITION_COLUMNS = {
     "previous_stage",
+    "previous_rating",
     "origination_pd_12m",
     "sicr_flag",
     "credit_impaired_flag",
@@ -284,6 +285,16 @@ def _add_staging_transition_context(
         pd.to_numeric(result["current_rating"], errors="coerce")
         - pd.to_numeric(result["origination_rating"], errors="coerce")
     )
+    origination_rating = pd.to_numeric(result["origination_rating"], errors="coerce")
+    current_rating = pd.to_numeric(result["current_rating"], errors="coerce")
+    trajectory_fraction = rng.uniform(0.45, 0.85, size=n)
+    trajectory_noise = rng.choice([-1, 0, 1], size=n, p=[0.10, 0.80, 0.10])
+    previous_rating = np.rint(
+        origination_rating
+        + (current_rating - origination_rating) * trajectory_fraction
+        + trajectory_noise
+    )
+    result["previous_rating"] = previous_rating.clip(1, 10)
     origination_pd = np.clip(
         0.0015 + (pd.to_numeric(result["origination_rating"], errors="coerce").fillna(5) - 1) * 0.008,
         0.0005,

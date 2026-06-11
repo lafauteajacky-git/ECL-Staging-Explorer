@@ -441,6 +441,18 @@ def run_raw_data_quality_tests(portfolio: pd.DataFrame) -> pd.DataFrame:
             ~portfolio["previous_stage"].isin(["Stage 1", "Stage 2", "Stage 3"]),
             severity="Critical",
         )
+    if "previous_rating" in portfolio:
+        add_test(
+            "VALID_PREVIOUS_RATING",
+            "Validite",
+            "Note precedente comprise entre 1 et 10",
+            "previous_rating",
+            ~pd.to_numeric(portfolio["previous_rating"], errors="coerce").between(
+                1,
+                10,
+                inclusive="both",
+            ),
+        )
     if "cure_period_months" in portfolio:
         add_test(
             "VALID_CURE_PERIOD",

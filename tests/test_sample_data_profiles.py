@@ -39,6 +39,7 @@ def test_generated_portfolio_contains_staging_transition_fields():
 
     expected_fields = {
         "previous_stage",
+        "previous_rating",
         "origination_pd_12m",
         "sicr_flag",
         "credit_impaired_flag",
