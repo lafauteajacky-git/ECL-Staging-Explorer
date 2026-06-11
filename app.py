@@ -1017,7 +1017,7 @@ def main() -> None:
         render_home(metrics, active_demo_profile, portfolio=portfolio, show_introduction=False)
 
     elif selected_page == "Portefeuille":
-        render_portfolio_dashboard(portfolio)
+        render_portfolio_dashboard(portfolio, metrics)
 
     elif selected_page == "Data Quality":
         st.subheader("Controles de qualite des donnees")
@@ -1405,7 +1405,7 @@ def render_portfolio_summary(
     )
 
 
-def render_portfolio_dashboard(portfolio: pd.DataFrame) -> None:
+def render_portfolio_dashboard(portfolio: pd.DataFrame, metrics: dict[str, float]) -> None:
     """Render a visual description of the synthetic portfolio."""
     auria_chart_colors = [
         "#0B2B46",
@@ -1434,11 +1434,8 @@ def render_portfolio_dashboard(portfolio: pd.DataFrame) -> None:
     display["country_name"] = display["country"].map(country_labels).fillna(display["country"])
 
     total_ead = float(pd.to_numeric(display["ead"], errors="coerce").fillna(0).sum())
-    average_ead = float(pd.to_numeric(display["ead"], errors="coerce").dropna().mean())
-    collateral_share = float(display["collateral_flag"].fillna(False).mean())
-    average_maturity = float(
-        pd.to_numeric(display["residual_maturity_months"], errors="coerce").dropna().mean()
-    )
+    total_ecl = float(metrics["total_ecl"])
+    coverage_ratio = float(metrics["coverage_ratio"])
 
     kpi_cols = st.columns(4)
     with kpi_cols[0]:
@@ -1446,13 +1443,9 @@ def render_portfolio_dashboard(portfolio: pd.DataFrame) -> None:
     with kpi_cols[1]:
         render_kpi_card("EAD totale", format_compact_currency(total_ead), "Exposure at Default")
     with kpi_cols[2]:
-        render_kpi_card("EAD moyenne", format_compact_currency(average_ead), "Par exposition")
+        render_kpi_card("ECL totale", format_compact_currency(total_ecl), "Expected Credit Loss")
     with kpi_cols[3]:
-        render_kpi_card(
-            "Maturite moyenne",
-            f"{average_maturity:.0f} mois",
-            f"{collateral_share:.1%} avec collateral",
-        )
+        render_kpi_card("Taux de couverture", f"{coverage_ratio:.2%}", "ECL totale / EAD totale")
 
     st.markdown("#### Composition du portefeuille")
     product_mix = (
