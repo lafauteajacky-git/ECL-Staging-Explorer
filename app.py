@@ -1017,9 +1017,7 @@ def main() -> None:
         render_home(metrics, active_demo_profile, portfolio=portfolio, show_introduction=False)
 
     elif selected_page == "Portefeuille":
-        st.subheader("Portefeuille synthetique")
-        st.write("Vue ligne a ligne des expositions utilisees pour la demonstration.")
-        st.dataframe(portfolio, width="stretch")
+        render_portfolio_dashboard(portfolio)
 
     elif selected_page == "Data Quality":
         st.subheader("Controles de qualite des donnees")
@@ -1405,6 +1403,155 @@ def render_portfolio_summary(
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_portfolio_dashboard(portfolio: pd.DataFrame) -> None:
+    """Render a visual description of the synthetic portfolio."""
+    st.subheader("Vue d'ensemble du portefeuille")
+    st.write(
+        "Lecture synthetique de la composition du portefeuille, des concentrations "
+        "et de la repartition de l'exposition au defaut."
+    )
+
+    country_labels = {
+        "FR": "France",
+        "DE": "Allemagne",
+        "IT": "Italie",
+        "ES": "Espagne",
+        "BE": "Belgique",
+        "NL": "Pays-Bas",
+    }
+    display = portfolio.copy()
+    display["country_name"] = display["country"].map(country_labels).fillna(display["country"])
+
+    total_ead = float(pd.to_numeric(display["ead"], errors="coerce").fillna(0).sum())
+    average_ead = float(pd.to_numeric(display["ead"], errors="coerce").dropna().mean())
+    collateral_share = float(display["collateral_flag"].fillna(False).mean())
+    average_maturity = float(
+        pd.to_numeric(display["residual_maturity_months"], errors="coerce").dropna().mean()
+    )
+
+    kpi_cols = st.columns(4)
+    with kpi_cols[0]:
+        render_kpi_card("Expositions", f"{len(display):,}".replace(",", " "), "Contrats synthetiques")
+    with kpi_cols[1]:
+        render_kpi_card("EAD totale", format_compact_currency(total_ead), "Exposure at Default")
+    with kpi_cols[2]:
+        render_kpi_card("EAD moyenne", format_compact_currency(average_ead), "Par exposition")
+    with kpi_cols[3]:
+        render_kpi_card(
+            "Maturite moyenne",
+            f"{average_maturity:.0f} mois",
+            f"{collateral_share:.1%} avec collateral",
+        )
+
+    st.markdown("#### Composition du portefeuille")
+    product_mix = (
+        display.groupby("product_type", as_index=False)
+        .agg(exposure_count=("loan_id", "count"), ead=("ead", "sum"))
+        .sort_values("exposure_count", ascending=False)
+    )
+    sector_mix = (
+        display.groupby("sector", as_index=False)
+        .agg(exposure_count=("loan_id", "count"), ead=("ead", "sum"))
+        .sort_values("exposure_count", ascending=False)
+    )
+    country_mix = (
+        display.groupby("country_name", as_index=False)
+        .agg(exposure_count=("loan_id", "count"), ead=("ead", "sum"))
+        .sort_values("exposure_count", ascending=False)
+    )
+
+    pie_cols = st.columns(3)
+    pie_specs = [
+        (pie_cols[0], product_mix, "product_type", "Repartition par produit"),
+        (pie_cols[1], sector_mix, "sector", "Repartition par secteur"),
+        (pie_cols[2], country_mix, "country_name", "Repartition par pays"),
+    ]
+    for container, data, label_column, title in pie_specs:
+        with container:
+            figure = px.pie(
+                data,
+                names=label_column,
+                values="exposure_count",
+                title=title,
+                hole=0.38,
+            )
+            figure.update_traces(
+                textposition="inside",
+                textinfo="percent",
+                hovertemplate="<b>%{label}</b><br>Expositions : %{value}<br>Part : %{percent}<extra></extra>",
+            )
+            figure.update_layout(
+                height=390,
+                margin=dict(l=10, r=10, t=55, b=10),
+                legend_title_text="",
+                legend=dict(orientation="h", y=-0.12, x=0.5, xanchor="center"),
+            )
+            st.plotly_chart(figure, width="stretch")
+
+    st.markdown("#### Exposition au defaut")
+    ead_left, ead_right = st.columns([1.15, 0.85])
+    with ead_left:
+        ead_by_product = product_mix.sort_values("ead", ascending=True)
+        product_figure = px.bar(
+            ead_by_product,
+            x="ead",
+            y="product_type",
+            orientation="h",
+            title="EAD totale par type de produit",
+            text_auto=".3s",
+        )
+        product_figure.update_layout(
+            height=410,
+            xaxis_title="EAD",
+            yaxis_title="",
+            margin=dict(l=10, r=20, t=55, b=25),
+        )
+        st.plotly_chart(product_figure, width="stretch")
+
+    with ead_right:
+        ead_by_country = country_mix.sort_values("ead", ascending=False)
+        country_figure = px.bar(
+            ead_by_country,
+            x="country_name",
+            y="ead",
+            title="EAD totale par pays",
+            text_auto=".3s",
+        )
+        country_figure.update_layout(
+            height=410,
+            xaxis_title="",
+            yaxis_title="EAD",
+            margin=dict(l=10, r=10, t=55, b=25),
+        )
+        st.plotly_chart(country_figure, width="stretch")
+
+    st.markdown("#### Profil des expositions")
+    profile_left, profile_right = st.columns(2)
+    with profile_left:
+        ead_distribution = px.histogram(
+            display,
+            x="ead",
+            nbins=30,
+            title="Distribution des montants EAD",
+            labels={"ead": "EAD par exposition", "count": "Nombre d'expositions"},
+        )
+        ead_distribution.update_layout(height=360, yaxis_title="Nombre d'expositions")
+        st.plotly_chart(ead_distribution, width="stretch")
+    with profile_right:
+        maturity_distribution = px.histogram(
+            display,
+            x="residual_maturity_months",
+            nbins=20,
+            title="Distribution des maturites residuelles",
+            labels={
+                "residual_maturity_months": "Maturite residuelle (mois)",
+                "count": "Nombre d'expositions",
+            },
+        )
+        maturity_distribution.update_layout(height=360, yaxis_title="Nombre d'expositions")
+        st.plotly_chart(maturity_distribution, width="stretch")
 
 
 def render_contact_block() -> None:
