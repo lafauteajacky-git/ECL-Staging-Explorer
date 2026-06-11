@@ -329,10 +329,21 @@ def aggregate_lgd_by_dimension(
     dimension: str,
 ) -> pd.DataFrame:
     """Aggregate LGD and recoveries by a portfolio dimension."""
-    if dimension not in portfolio:
-        raise ValueError(f"Unknown LGD aggregation dimension: {dimension}")
+    aggregation_portfolio = portfolio.copy()
+    if dimension not in aggregation_portfolio:
+        if dimension == "collateral_type" and "collateral_flag" in aggregation_portfolio:
+            collateral = coerce_boolean_series(
+                aggregation_portfolio["collateral_flag"]
+            )
+            aggregation_portfolio[dimension] = np.where(
+                collateral,
+                "Collateralise - type non renseigne",
+                "Non collateralise",
+            )
+        else:
+            aggregation_portfolio[dimension] = "Non renseigne"
     records = []
-    for value, group in portfolio.groupby(dimension, dropna=False):
+    for value, group in aggregation_portfolio.groupby(dimension, dropna=False):
         ead = pd.to_numeric(group["ead"], errors="coerce").clip(lower=0).fillna(0.0)
         lgd = pd.to_numeric(group["lgd"], errors="coerce")
         valid = lgd.notna() & ead.gt(0)

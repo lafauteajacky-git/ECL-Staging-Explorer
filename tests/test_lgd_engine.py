@@ -1,6 +1,7 @@
 import pandas as pd
 
 from modules.lgd_engine import (
+    aggregate_lgd_by_dimension,
     add_synthetic_lgd_inputs,
     build_lgd_sensitivity,
     build_lgd_waterfall,
@@ -119,3 +120,17 @@ def test_synthetic_lgd_inputs_are_reproducible():
 
     pd.testing.assert_frame_equal(first, second)
     assert first.loc[0, "collateral_type"] == "Residential real estate"
+
+
+def test_lgd_aggregation_falls_back_when_collateral_type_is_missing():
+    portfolio = calculate_lgd(
+        _recovery_portfolio().drop(columns=["collateral_type"], errors="ignore"),
+        preserve_missing_lgd=False,
+    )
+
+    summary = aggregate_lgd_by_dimension(portfolio, "collateral_type")
+
+    assert set(summary["collateral_type"]) == {
+        "Collateralise - type non renseigne",
+        "Non collateralise",
+    }

@@ -471,12 +471,22 @@ def main() -> None:
         "portfolio" in st.session_state
         and "previous_stage" not in st.session_state["portfolio"].columns
     )
+    required_risk_parameter_columns = {
+        "pd_lifetime_method",
+        "lgd_method",
+        "collateral_type",
+        "collateral_value",
+        "collateral_haircut",
+        "liquidation_cost_rate",
+        "unsecured_recovery_rate",
+        "recovery_delay_months",
+        "recovery_cost_amount",
+        "seniority",
+    }
     portfolio_requires_risk_upgrade = (
         "portfolio" in st.session_state
-        and (
-            "pd_lifetime_method" not in st.session_state["portfolio"].columns
-            or "lgd_method" not in st.session_state["portfolio"].columns
-            or "collateral_value" not in st.session_state["portfolio"].columns
+        and not required_risk_parameter_columns.issubset(
+            st.session_state["portfolio"].columns
         )
     )
     if (
