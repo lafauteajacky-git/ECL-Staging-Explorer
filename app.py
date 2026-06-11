@@ -1118,7 +1118,7 @@ def render_brand_header(run_id: str | None = None, compact: bool = False) -> Non
                 display:grid;
                 grid-template-columns:minmax(0, 1.55fr) minmax(310px, 0.75fr);
                 gap:28px;
-                align-items:stretch;
+                align-items:start;
             ">
                 <div style="padding:2px 0 0;">
                     <div style="
@@ -1145,20 +1145,29 @@ def render_brand_header(run_id: str | None = None, compact: bool = False) -> Non
                         font-size:1rem;
                         line-height:1.65;
                     ">
-                        Demonstrateur IFRS 9 pour explorer le staging, les ECL, la qualite des donnees,
-                        les scenarios macro, les overlays manageriaux, l'audit trail et la note comite.
+                        Ce demonstrateur illustre, sur un portefeuille entierement synthetique,
+                        la chaine de provisionnement IFRS 9 : controle de la qualite des donnees,
+                        identification d'une augmentation significative du risque de credit,
+                        classement en Stage 1, 2 ou 3, calcul des pertes de credit attendues,
+                        prise en compte d'informations prospectives et documentation des jugements manageriaux.
                     </p>
-                    <p style="margin:10px 0 0; color:rgba(255,255,255,0.90); font-size:0.92rem;">
-                        <strong>Contexte :</strong> portefeuille synthetique multi-profils avec controles de coherence et restitution executive.
-                    </p>
-                    <p style="margin:8px 0 0; color:rgba(255,255,255,0.90); font-size:0.92rem;">
-                        <strong>A observer :</strong> migrations Stage 2/3, sensibilite macro, overlays et cas necessitant revue.
-                    </p>
-                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:18px;">
-                        <span class="auria-pill">Donnees synthetiques</span>
-                        <span class="auria-pill">Dashboard executif</span>
-                        <span class="auria-pill">Audit trail</span>
-                        <span class="auria-pill">Note comite</span>
+                    <div style="
+                        margin-top:20px;
+                        padding:16px 18px;
+                        border-left:4px solid #f1a986;
+                        border-radius:0 12px 12px 0;
+                        background:rgba(255,255,255,0.08);
+                    ">
+                        <div style="color:#f1a986;font-size:0.7rem;font-weight:950;
+                            letter-spacing:0.1em;text-transform:uppercase;margin-bottom:9px;">
+                            Ancrages reglementaires
+                        </div>
+                        <div style="color:rgba(255,255,255,0.88);font-size:0.82rem;line-height:1.65;">
+                            <strong>IFRS 9</strong> - depreciation, ECL 12 mois et lifetime, SICR et informations prospectives.<br>
+                            <strong>EBA / GL / 2017 / 06</strong> - pratiques de gestion du risque de credit et comptabilisation des pertes attendues.<br>
+                            <strong>BCE - Supervision bancaire</strong> - gouvernance du risque de credit, qualite des donnees, modeles et jugements experts.<br>
+                            <strong>BCBS 239</strong> - principes d'agregation et de reporting des donnees de risque.
+                        </div>
                     </div>
                 </div>
                 <aside style="
@@ -1176,10 +1185,8 @@ def render_brand_header(run_id: str | None = None, compact: bool = False) -> Non
                         text-transform:uppercase;
                         margin-bottom:22px;
                     ">Perimetre de demonstration</div>
-                    <div class="auria-scope-row"><span>Portefeuilles</span><strong>5 profils synthetiques</strong></div>
                     <div class="auria-scope-row"><span>Modeles</span><strong>Staging, ECL, scenarios</strong></div>
                     <div class="auria-scope-row"><span>Gouvernance</span><strong>Overlays, audit trail</strong></div>
-                    <div class="auria-scope-row"><span>Usage</span><strong>RDV client / comite</strong></div>
                     <div style="
                         margin-top:26px;
                         padding-top:16px;
@@ -1187,24 +1194,14 @@ def render_brand_header(run_id: str | None = None, compact: bool = False) -> Non
                         color:rgba(255,255,255,0.84);
                         font-size:0.84rem;
                         line-height:1.55;
-                    ">{DEMO_DISCLAIMER_FR}</div>
+                    ">
+                        Donnees 100% synthetiques - demonstrateur a vocation pedagogique.
+                        Ne pas utiliser pour la production, la comptabilisation ou le reporting reglementaire.
+                    </div>
                 </aside>
             </div>
         </section>
         <style>
-            .auria-pill {{
-                display:inline-flex;
-                align-items:center;
-                min-height:30px;
-                padding:0 13px;
-                border:1px solid rgba(255,255,255,0.20);
-                border-radius:999px;
-                background:rgba(255,255,255,0.10);
-                color:#ffffff;
-                font-size:0.78rem;
-                font-weight:850;
-                white-space:nowrap;
-            }}
             .auria-scope-row {{
                 display:flex;
                 justify-content:space-between;
