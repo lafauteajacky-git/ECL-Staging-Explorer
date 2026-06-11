@@ -62,7 +62,12 @@ def apply_overlays(ecl_portfolio: pd.DataFrame, enabled_overlay_names: list[str]
     amounts are calculated independently on pre-overlay ECL and summed into one
     total overlay amount. Exposure rows are not duplicated.
     """
-    enabled = set(enabled_overlay_names or [overlay["name"] for overlay in PREDEFINED_OVERLAYS])
+    enabled_names = (
+        [overlay["name"] for overlay in PREDEFINED_OVERLAYS]
+        if enabled_overlay_names is None
+        else enabled_overlay_names
+    )
+    enabled = set(enabled_names)
     active_overlays = [overlay for overlay in PREDEFINED_OVERLAYS if overlay["name"] in enabled]
     result = ecl_portfolio.copy()
     result["ecl_before_overlay"] = result["ecl"]

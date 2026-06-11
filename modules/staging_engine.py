@@ -5,6 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from modules.data_types import coerce_boolean_series
+
 
 STAGE_3_TO_2_CURE_MONTHS = 3
 STAGE_2_TO_1_CURE_MONTHS = 6
@@ -251,7 +253,7 @@ def assign_stage(portfolio: pd.DataFrame) -> pd.DataFrame:
 def _boolean_series(frame: pd.DataFrame, column: str) -> pd.Series:
     if column not in frame:
         return pd.Series(False, index=frame.index)
-    return frame[column].fillna(False).astype(bool)
+    return coerce_boolean_series(frame[column])
 
 
 def _build_stage_comment(row: pd.Series) -> str:

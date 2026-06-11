@@ -33,6 +33,14 @@ def test_packaging_docs_exist():
         assert Path(doc_path).exists()
 
 
+def test_public_demo_does_not_offer_external_data_import():
+    app_source = Path("app.py").read_text(encoding="utf-8")
+
+    assert "file_uploader" not in app_source
+    assert "read_uploaded_file" not in app_source
+    assert "Charger un fichier" not in app_source
+
+
 def test_disclaimer_is_present_in_committee_summary_and_excel_export():
     note = generate_committee_summary(
         "RUN-1",

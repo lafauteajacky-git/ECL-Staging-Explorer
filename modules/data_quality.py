@@ -5,6 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from modules.data_types import coerce_boolean_series
+
 
 DATA_QUALITY_DIMENSIONS = {
     "MISSING_RATING": "Completude",
@@ -78,12 +80,14 @@ def run_data_quality_checks(portfolio: pd.DataFrame) -> pd.DataFrame:
         ("NEGATIVE_DPD", portfolio["days_past_due"] < 0, "DPD negatif"),
         (
             "DEFAULT_DPD_INCONSISTENCY",
-            (portfolio["days_past_due"] >= 90) & (~portfolio["default_flag"].fillna(False)),
+            (portfolio["days_past_due"] >= 90)
+            & ~coerce_boolean_series(portfolio["default_flag"]),
             "Defaut incoherent avec DPD superieur ou egal a 90 jours",
         ),
         (
             "LTV_WITHOUT_COLLATERAL",
-            portfolio["ltv"].notna() & (~portfolio["collateral_flag"].fillna(False)),
+            portfolio["ltv"].notna()
+            & ~coerce_boolean_series(portfolio["collateral_flag"]),
             "LTV renseigne sans collateral",
         ),
     ]
@@ -484,7 +488,7 @@ def run_raw_data_quality_tests(portfolio: pd.DataFrame) -> pd.DataFrame:
         "DPD >= 90 coherent avec le flag de defaut",
         "default_flag / days_past_due",
         pd.to_numeric(portfolio["days_past_due"], errors="coerce").ge(90)
-        & ~portfolio["default_flag"].fillna(False).astype(bool),
+        & ~coerce_boolean_series(portfolio["default_flag"]),
         severity="Critical",
     )
     add_test(
@@ -492,21 +496,23 @@ def run_raw_data_quality_tests(portfolio: pd.DataFrame) -> pd.DataFrame:
         "Coherence",
         "LTV renseigne uniquement si collateral present",
         "ltv / collateral_flag",
-        portfolio["ltv"].notna() & ~portfolio["collateral_flag"].fillna(False).astype(bool),
+        portfolio["ltv"].notna()
+        & ~coerce_boolean_series(portfolio["collateral_flag"]),
     )
     add_test(
         "CONSISTENCY_COLLATERAL_LTV",
         "Coherence",
         "LTV renseigne lorsque collateral present",
         "collateral_flag / ltv",
-        portfolio["collateral_flag"].fillna(False).astype(bool) & portfolio["ltv"].isna(),
+        coerce_boolean_series(portfolio["collateral_flag"])
+        & portfolio["ltv"].isna(),
     )
     add_test(
         "CONSISTENCY_DEFAULT_PD",
         "Coherence",
         "Exposition en defaut avec PD lifetime significative",
         "default_flag / pd_lifetime",
-        portfolio["default_flag"].fillna(False).astype(bool)
+        coerce_boolean_series(portfolio["default_flag"])
         & pd.to_numeric(portfolio["pd_lifetime"], errors="coerce").lt(0.50),
         threshold=0.02,
     )

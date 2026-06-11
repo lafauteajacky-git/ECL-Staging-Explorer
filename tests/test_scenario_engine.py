@@ -61,3 +61,43 @@ def test_caps_pd_and_lgd_at_100_percent():
     assert result.loc[0, "pd_lifetime_adjusted"] == 1.0
     assert result.loc[0, "lgd_adjusted"] == 1.0
     assert result.loc[0, "scenario_ecl"] == 1_000
+
+
+def test_rejects_negative_weights_even_when_total_is_100_percent():
+    invalid = {
+        "Baseline": {"weight": 1.20, "pd_multiplier": 1.0, "lgd_multiplier": 1.0},
+        "Downside": {"weight": -0.20, "pd_multiplier": 1.35, "lgd_multiplier": 1.15},
+    }
+
+    assert validate_scenario_weights(invalid) is False
+    with pytest.raises(ValueError, match="weights must total 100%"):
+        calculate_all_scenarios(_portfolio(), invalid)
+
+
+def test_rejects_negative_scenario_multipliers():
+    invalid = {
+        "Baseline": {"weight": 1.0, "pd_multiplier": -1.0, "lgd_multiplier": 1.0},
+    }
+
+    assert validate_scenario_weights(invalid) is False
+
+
+def test_floors_negative_pd_and_lgd_at_zero():
+    portfolio = pd.DataFrame(
+        [
+            {
+                "loan_id": "LN-1",
+                "stage": "Stage 2",
+                "pd_12m": -0.10,
+                "pd_lifetime": -0.20,
+                "lgd": -0.40,
+                "ead": 1_000,
+            }
+        ]
+    )
+
+    result = calculate_scenario_ecl(portfolio, "Baseline", 1.0, 1.0)
+
+    assert result.loc[0, "pd_lifetime_adjusted"] == 0.0
+    assert result.loc[0, "lgd_adjusted"] == 0.0
+    assert result.loc[0, "scenario_ecl"] == 0.0

@@ -102,3 +102,11 @@ def test_ecl_after_overlay_equals_before_plus_overlay_amount():
     result, _ = apply_overlays(_portfolio(), ["Stage 3 Recovery Risk"])
 
     assert (result["ecl_after_overlay"] == result["ecl_before_overlay"] + result["overlay_amount"]).all()
+
+
+def test_empty_overlay_selection_applies_no_overlay():
+    result, summary = apply_overlays(_portfolio(), [])
+
+    assert result["overlay_amount"].sum() == 0
+    assert not result["overlay_applied"].any()
+    assert summary.empty

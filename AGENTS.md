@@ -37,6 +37,7 @@ pytest
 
 - `modules/sample_data.py` : generation de portefeuille et profils de demonstration synthetiques.
 - `modules/data_quality.py` : controles simples de qualite des donnees.
+- `modules/data_types.py` : coercition partagee des types de donnees, notamment les indicateurs booleens.
 - `modules/staging_engine.py` : regles de staging MVP.
 - `modules/ecl_calculator.py` : calcul ECL simplifie.
 - `modules/scenario_engine.py` : scenarios macroeconomiques pedagogiques Baseline, Downside et Upside.

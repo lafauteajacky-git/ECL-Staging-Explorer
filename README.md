@@ -26,9 +26,9 @@ Le demonstrateur aide a illustrer en rendez-vous client ou en atelier interne :
 
 **Donnees 100% synthetiques - demonstrateur a vocation pedagogique et commerciale. Ne pas utiliser pour la production, la comptabilisation ou le reporting reglementaire.**
 
-Aucune donnee bancaire reelle ne doit etre integree dans ce projet sans cadrage specifique, anonymisation, autorisation et gouvernance adaptee.
+La V1 ne propose aucun import de fichier externe. Tous les portefeuilles sont generes localement par le moteur de donnees synthetiques du demonstrateur.
 
-## Fonctionnalites principales V0.7
+## Fonctionnalites principales V1
 
 - Profils de portefeuille de demonstration : `Balanced`, `Low Risk`, `Deteriorated`, `Data Quality Issues`, `CRE Stress`.
 - Data quality checks et score qualite.
@@ -42,6 +42,9 @@ Aucune donnee bancaire reelle ne doit etre integree dans ce projet sans cadrage 
 - Note de synthese comite exportable en Markdown et Word.
 - Export Excel multi-onglets avec disclaimer.
 - Documentation utilisateur, script de demo, notes methodologiques et roadmap.
+- Validation renforcee des ponderations et multiplicateurs macroeconomiques.
+- Desactivation complete possible des overlays sans application implicite.
+- Coercition stricte des indicateurs booleens et bornage des PD/LGD entre 0% et 100%.
 
 ## Installation
 

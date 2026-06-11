@@ -5,6 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from modules.data_types import coerce_boolean_series
+
 
 DEFAULT_LABEL = "Defaut"
 WORST_GRADE_THRESHOLD = 8
@@ -21,7 +23,7 @@ def prepare_rating_migrations(
     reference = pd.to_numeric(result[source_rating], errors="coerce")
     current = pd.to_numeric(result["current_rating"], errors="coerce")
     current_default = (
-        result["default_flag"].fillna(False).astype(bool)
+        coerce_boolean_series(result["default_flag"])
         | pd.to_numeric(result["days_past_due"], errors="coerce").ge(90)
         | result.get("stage", pd.Series("", index=result.index)).eq("Stage 3")
     )

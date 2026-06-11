@@ -37,3 +37,25 @@ def test_summarizes_ecl_metrics_by_stage_and_portfolio():
     assert metrics["total_ead"] == 2_000
     assert metrics["total_ecl"] == pytest.approx(48)
     assert metrics["coverage_ratio"] == pytest.approx(0.024)
+
+
+def test_ecl_floors_negative_pd_and_lgd_and_handles_zero_ead():
+    portfolio = pd.DataFrame(
+        [
+            {
+                "loan_id": "LN-1",
+                "stage": "Stage 2",
+                "pd_12m": -0.10,
+                "pd_lifetime": -0.20,
+                "lgd": -0.40,
+                "ead": 0,
+            }
+        ]
+    )
+
+    result = calculate_ecl(portfolio)
+    summary = summarize_ecl(result)
+
+    assert result.loc[0, "ecl"] == 0.0
+    assert result.loc[0, "coverage_ratio"] == 0.0
+    assert summary.loc[0, "coverage_ratio"] == 0.0

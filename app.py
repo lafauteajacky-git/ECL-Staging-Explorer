@@ -33,6 +33,7 @@ from modules.data_quality import (
     run_raw_data_quality_tests,
     summarize_quality_findings,
 )
+from modules.data_types import coerce_boolean_series
 from modules.demo_config import APP_NAME, DEMO_DISCLAIMER_FR, EXPORT_FILE_PREFIX
 from modules.ecl_calculator import calculate_ecl
 from modules.migration_analysis import (
@@ -1320,13 +1321,6 @@ def load_synthetic_portfolio(
     )
 
 
-def read_uploaded_file(uploaded_file) -> pd.DataFrame:
-    """Read a user-provided CSV or Excel file for demo purposes."""
-    if uploaded_file.name.endswith(".csv"):
-        return pd.read_csv(uploaded_file)
-    return pd.read_excel(uploaded_file)
-
-
 def format_currency(value: float) -> str:
     """Format monetary values for dashboard metrics."""
     return f"{value:,.0f} EUR".replace(",", " ")
@@ -1475,7 +1469,6 @@ def default_demo_parameters() -> dict:
         "data_quality_level": DATA_QUALITY_LEVELS[0],
         "n_exposures": 1_000,
         "seed": 42,
-        "uploaded_file": None,
         "scenario_config": {
             scenario: dict(values) for scenario, values in DEFAULT_SCENARIOS.items()
         },
@@ -1493,7 +1486,6 @@ def get_persisted_demo_parameters() -> dict:
 def restore_demo_widget_state(parameters: dict) -> None:
     """Restore widget keys after Streamlit removed widgets on another page."""
     widget_values = {
-        "demo_source": parameters["source"],
         "demo_profile_control": parameters["demo_profile"],
         "demo_data_quality_level": parameters["data_quality_level"],
         "demo_exposure_count": parameters["n_exposures"],
@@ -1514,12 +1506,10 @@ def reset_demo_parameters() -> None:
     defaults = default_demo_parameters()
     st.session_state["persisted_demo_parameters"] = defaults
     widget_keys = [
-        "demo_source",
         "demo_profile_control",
         "demo_data_quality_level",
         "demo_exposure_count",
         "demo_seed",
-        "demo_uploaded_file",
         "demo_enabled_overlays",
     ]
     for scenario in DEFAULT_SCENARIOS:
@@ -1561,12 +1551,10 @@ def render_demo_parameters():
     st.caption("Configurez le portefeuille, les hypotheses macroeconomiques et les overlays avant d'explorer les resultats.")
 
     with st.expander("1. Portefeuille de demonstration", expanded=True):
-        source = st.radio(
-            "Source du portefeuille",
-            ["Generer un portefeuille synthetique", "Charger un fichier"],
-            index=0,
-            horizontal=True,
-            key="demo_source",
+        source = "Generer un portefeuille synthetique"
+        st.info(
+            "Source unique : portefeuille 100 % synthetique genere par le demonstrateur. "
+            "L'import de donnees externes est desactive dans la V1."
         )
         portfolio_col1, portfolio_col2 = st.columns(2)
         with portfolio_col1:
@@ -1596,20 +1584,12 @@ def render_demo_parameters():
         )
         st.caption(DATA_QUALITY_LEVEL_DESCRIPTIONS[data_quality_level])
 
-        uploaded_file = None
-        if source == "Charger un fichier":
-            uploaded_file = st.file_uploader(
-                "Fichier CSV ou Excel",
-                type=["csv", "xlsx"],
-                key="demo_uploaded_file",
-            )
         generate_clicked = st.button(
             "Generer le portefeuille synthetique",
             type="primary",
-            disabled=source != "Generer un portefeuille synthetique",
         )
         generated_summary = st.session_state.get("portfolio_generation_summary", {})
-        if source == "Generer un portefeuille synthetique" and generated_summary:
+        if generated_summary:
             pending_changes = (
                 generated_summary.get("profile") != demo_profile
                 or int(generated_summary.get("requested_exposures", 0)) != int(n_exposures)
@@ -1639,7 +1619,6 @@ def render_demo_parameters():
         "data_quality_level": data_quality_level,
         "n_exposures": int(n_exposures),
         "seed": int(seed),
-        "uploaded_file": uploaded_file,
         "scenario_config": {
             scenario: dict(values) for scenario, values in scenario_config.items()
         },
@@ -1653,7 +1632,6 @@ def render_demo_parameters():
         n_exposures,
         seed,
         generate_clicked,
-        uploaded_file,
         scenario_config,
         enabled_overlays,
     )
@@ -1667,7 +1645,6 @@ def load_demo_parameters_from_state():
     data_quality_level = parameters["data_quality_level"]
     n_exposures = int(parameters["n_exposures"])
     seed = int(parameters["seed"])
-    uploaded_file = parameters.get("uploaded_file")
     scenario_config = {
         scenario: dict(values)
         for scenario, values in parameters["scenario_config"].items()
@@ -1679,7 +1656,6 @@ def load_demo_parameters_from_state():
         data_quality_level,
         n_exposures,
         seed,
-        uploaded_file,
         scenario_config,
         enabled_overlays,
     )
@@ -1690,17 +1666,11 @@ def render_active_demo_context(
     demo_profile: str,
     data_quality_level: str,
     portfolio: pd.DataFrame,
-    uploaded_file=None,
 ) -> None:
     """Render the active demonstration context on every application page."""
     generation = st.session_state.get("portfolio_generation_summary", {})
-    if source == "Charger un fichier":
-        file_name = getattr(uploaded_file, "name", "Fichier charge")
-        source_label = "Fichier utilisateur"
-        source_detail = file_name
-    else:
-        source_label = "Portefeuille synthetique"
-        source_detail = "Generation reproductible"
+    source_label = "Portefeuille synthetique"
+    source_detail = "Generation reproductible"
 
     exposure_count = f"{len(portfolio):,}".replace(",", " ")
     trace_items = []
@@ -1822,59 +1792,49 @@ def main() -> None:
 
     if selected_page == "Accueil":
         render_home_introduction()
-        source, demo_profile, data_quality_level, n_exposures, seed, generate_clicked, uploaded_file, scenario_config, enabled_overlays = (
+        source, demo_profile, data_quality_level, n_exposures, seed, generate_clicked, scenario_config, enabled_overlays = (
             render_demo_parameters()
         )
     else:
-        source, demo_profile, data_quality_level, n_exposures, seed, uploaded_file, scenario_config, enabled_overlays = (
+        source, demo_profile, data_quality_level, n_exposures, seed, scenario_config, enabled_overlays = (
             load_demo_parameters_from_state()
         )
         generate_clicked = False
 
-    if source == "Charger un fichier":
-        if uploaded_file is None:
-            portfolio = None
-        try:
-            if uploaded_file is not None:
-                portfolio = read_uploaded_file(uploaded_file)
-        except Exception as exc:
-            st.error(f"Chargement impossible : {exc}")
-            st.stop()
-    else:
-        portfolio_requires_transition_upgrade = (
-            "portfolio" in st.session_state
-            and "previous_stage" not in st.session_state["portfolio"].columns
+    portfolio_requires_transition_upgrade = (
+        "portfolio" in st.session_state
+        and "previous_stage" not in st.session_state["portfolio"].columns
+    )
+    if generate_clicked or "portfolio" not in st.session_state or portfolio_requires_transition_upgrade:
+        generation_datetime = datetime.now()
+        generated_portfolio = load_synthetic_portfolio(
+            n_exposures=n_exposures,
+            seed=seed,
+            demo_profile=demo_profile,
+            data_quality_level=data_quality_level,
         )
-        if generate_clicked or "portfolio" not in st.session_state or portfolio_requires_transition_upgrade:
-            generation_datetime = datetime.now()
-            generated_portfolio = load_synthetic_portfolio(
-                n_exposures=n_exposures,
-                seed=seed,
-                demo_profile=demo_profile,
-                data_quality_level=data_quality_level,
-            )
-            st.session_state["portfolio"] = generated_portfolio
-            st.session_state["demo_profile"] = demo_profile
-            st.session_state["data_quality_level"] = data_quality_level
-            st.session_state["run_datetime"] = generation_datetime
-            st.session_state["run_id"] = generate_run_id(generation_datetime)
-            st.session_state["portfolio_generation_summary"] = {
-                "profile": demo_profile,
-                "data_quality_level": data_quality_level,
-                "requested_exposures": int(n_exposures),
-                "generated_exposures": int(len(generated_portfolio)),
-                "seed": int(seed),
-                "generated_at": generation_datetime.strftime("%d/%m/%Y %H:%M:%S"),
-                "run_id": st.session_state["run_id"],
-                "manual_generation": bool(generate_clicked),
-            }
-        portfolio = st.session_state["portfolio"]
+        st.session_state["portfolio"] = generated_portfolio
+        st.session_state["demo_profile"] = demo_profile
+        st.session_state["data_quality_level"] = data_quality_level
+        st.session_state["run_datetime"] = generation_datetime
+        st.session_state["run_id"] = generate_run_id(generation_datetime)
+        st.session_state["portfolio_generation_summary"] = {
+            "profile": demo_profile,
+            "data_quality_level": data_quality_level,
+            "requested_exposures": int(n_exposures),
+            "generated_exposures": int(len(generated_portfolio)),
+            "seed": int(seed),
+            "generated_at": generation_datetime.strftime("%d/%m/%Y %H:%M:%S"),
+            "run_id": st.session_state["run_id"],
+            "manual_generation": bool(generate_clicked),
+        }
+    portfolio = st.session_state["portfolio"]
     active_demo_profile = st.session_state.get("demo_profile", demo_profile)
 
     if portfolio is None:
         if selected_page == "Accueil":
             render_home(None, demo_profile, show_introduction=False)
-        st.info("Chargez un fichier CSV ou Excel, ou repassez en generation synthetique.")
+        st.info("Generez un portefeuille synthetique pour lancer la demonstration.")
         st.stop()
 
     missing_columns = missing_required_columns(portfolio)
@@ -1884,16 +1844,23 @@ def main() -> None:
         st.stop()
 
     portfolio = ensure_staging_transition_context(portfolio, seed=seed)
-    if source == "Generer un portefeuille synthetique":
-        st.session_state["portfolio"] = portfolio
+    st.session_state["portfolio"] = portfolio
 
     render_active_demo_context(
         source,
         active_demo_profile,
         st.session_state.get("data_quality_level", data_quality_level),
         portfolio,
-        uploaded_file,
     )
+
+    scenario_weights_valid = validate_scenario_weights(scenario_config)
+    if not scenario_weights_valid:
+        st.error(
+            "Calcul impossible : les ponderations macro doivent totaliser 100 %, "
+            "rester comprises entre 0 % et 100 %, et les multiplicateurs doivent "
+            "etre positifs."
+        )
+        st.stop()
 
     try:
         findings = run_data_quality_checks(portfolio)
@@ -1910,7 +1877,6 @@ def main() -> None:
         ecl_by_sector = aggregate_ecl_by_dimension(ecl_portfolio, "sector")
         metrics = build_dashboard_metrics(ecl_portfolio, findings)
         scenario_parameters = scenario_config_to_frame(scenario_config)
-        scenario_weights_valid = validate_scenario_weights(scenario_config)
         scenario_line_items, scenario_summary = calculate_all_scenarios(ecl_portfolio, scenario_config)
         scenario_metrics = calculate_weighted_ecl_summary(scenario_summary)
         downside_by_stage = calculate_downside_impact_by_stage(scenario_line_items)
@@ -2308,15 +2274,25 @@ def render_portfolio_summary(
     total_ead = float(pd.to_numeric(portfolio.get("ead"), errors="coerce").fillna(0).sum())
     total_ecl = float(metrics.get("total_ecl", 0.0)) if metrics else 0.0
     coverage_ratio = float(metrics.get("coverage_ratio", 0.0)) if metrics else 0.0
-    default_rate = float(portfolio.get("default_flag", pd.Series(False, index=portfolio.index)).fillna(False).mean())
+    default_rate = float(
+        coerce_boolean_series(
+            portfolio.get("default_flag", pd.Series(False, index=portfolio.index))
+        ).mean()
+    )
     forbearance_rate = float(
-        portfolio.get("forbearance_flag", pd.Series(False, index=portfolio.index)).fillna(False).mean()
+        coerce_boolean_series(
+            portfolio.get("forbearance_flag", pd.Series(False, index=portfolio.index))
+        ).mean()
     )
     watchlist_rate = float(
-        portfolio.get("watchlist_flag", pd.Series(False, index=portfolio.index)).fillna(False).mean()
+        coerce_boolean_series(
+            portfolio.get("watchlist_flag", pd.Series(False, index=portfolio.index))
+        ).mean()
     )
     collateral_rate = float(
-        portfolio.get("collateral_flag", pd.Series(False, index=portfolio.index)).fillna(False).mean()
+        coerce_boolean_series(
+            portfolio.get("collateral_flag", pd.Series(False, index=portfolio.index))
+        ).mean()
     )
     exposure_label = f"{len(portfolio):,}".replace(",", " ")
     profile_focus = {
@@ -2830,7 +2806,7 @@ def render_ecl_calculation_dashboard(ecl_portfolio: pd.DataFrame) -> None:
         stage_1 = filtered.loc[filtered["stage"].eq("Stage 1")].copy()
         if not stage_1.empty:
             if probation_column == "returned_to_stage_1_flag":
-                probation_mask = stage_1[probation_column].fillna(False).astype(bool)
+                probation_mask = coerce_boolean_series(stage_1[probation_column])
             else:
                 probation_values = stage_1[probation_column]
                 probation_mask = probation_values.fillna(False).astype(str).str.lower().isin(

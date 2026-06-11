@@ -153,3 +153,19 @@ def test_stage_1_to_stage_2_accepts_pd_increase_trigger():
 
     assert result.loc[0, "stage"] == "Stage 2"
     assert result.loc[0, "stage_reason"] == "PD increase >= 2x origination"
+
+
+def test_text_false_boolean_flags_do_not_trigger_stage_2_or_stage_3():
+    result = assign_stage(
+        pd.DataFrame(
+            [
+                _base_row(
+                    default_flag="False",
+                    forbearance_flag="False",
+                    watchlist_flag="False",
+                )
+            ]
+        )
+    )
+
+    assert result.loc[0, "stage"] == "Stage 1"

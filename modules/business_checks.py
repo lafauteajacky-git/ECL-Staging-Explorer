@@ -10,6 +10,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from modules.data_types import coerce_boolean_series
+
 
 CHECK_COUNT = 10
 CRITICAL_SEVERITY = "Critical"
@@ -271,7 +273,9 @@ def _stage(df: pd.DataFrame, stage: str) -> pd.Series:
 
 
 def _bool_col(df: pd.DataFrame, column: str) -> pd.Series:
-    return df.get(column, pd.Series(False, index=df.index)).fillna(False).astype(bool)
+    return coerce_boolean_series(
+        df.get(column, pd.Series(False, index=df.index))
+    )
 
 
 def _num_col(df: pd.DataFrame, column: str) -> pd.Series:

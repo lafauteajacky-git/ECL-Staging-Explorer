@@ -34,17 +34,46 @@ def scenario_config_to_frame(config: dict[str, dict[str, float]]) -> pd.DataFram
 
 
 def validate_scenario_weights(config: dict[str, dict[str, float]], tolerance: float = 1e-9) -> bool:
-    """Return True when scenario weights sum to 100%."""
-    return abs(sum(values["weight"] for values in config.values()) - 1.0) <= tolerance
+    """Return True when weights and multipliers form a valid configuration."""
+    if not config:
+        return False
+
+    required_fields = {"weight", "pd_multiplier", "lgd_multiplier"}
+    try:
+        for values in config.values():
+            if not required_fields.issubset(values):
+                return False
+            weight = float(values["weight"])
+            pd_multiplier = float(values["pd_multiplier"])
+            lgd_multiplier = float(values["lgd_multiplier"])
+            if not all(np.isfinite(value) for value in (weight, pd_multiplier, lgd_multiplier)):
+                return False
+            if not 0.0 <= weight <= 1.0:
+                return False
+            if pd_multiplier < 0.0 or lgd_multiplier < 0.0:
+                return False
+    except (TypeError, ValueError):
+        return False
+
+    total_weight = sum(float(values["weight"]) for values in config.values())
+    return abs(total_weight - 1.0) <= tolerance
 
 
 def calculate_scenario_ecl(staged_portfolio: pd.DataFrame, scenario_name: str, pd_multiplier: float, lgd_multiplier: float) -> pd.DataFrame:
     """Calculate ECL under one macro scenario with capped PD and LGD."""
     result = staged_portfolio.copy()
     result["scenario"] = scenario_name
-    result["pd_12m_adjusted"] = np.minimum(result["pd_12m"] * pd_multiplier, 1.0)
-    result["pd_lifetime_adjusted"] = np.minimum(result["pd_lifetime"] * pd_multiplier, 1.0)
-    result["lgd_adjusted"] = np.minimum(result["lgd"] * lgd_multiplier, 1.0)
+    if not np.isfinite(pd_multiplier) or not np.isfinite(lgd_multiplier):
+        raise ValueError("Scenario multipliers must be finite.")
+    if pd_multiplier < 0.0 or lgd_multiplier < 0.0:
+        raise ValueError("Scenario multipliers cannot be negative.")
+
+    pd_12m = pd.to_numeric(result["pd_12m"], errors="coerce")
+    pd_lifetime = pd.to_numeric(result["pd_lifetime"], errors="coerce")
+    lgd = pd.to_numeric(result["lgd"], errors="coerce")
+    result["pd_12m_adjusted"] = (pd_12m * pd_multiplier).clip(0.0, 1.0)
+    result["pd_lifetime_adjusted"] = (pd_lifetime * pd_multiplier).clip(0.0, 1.0)
+    result["lgd_adjusted"] = (lgd * lgd_multiplier).clip(0.0, 1.0)
 
     result["pd_used_for_scenario"] = np.select(
         [result["stage"].eq("Stage 1"), result["stage"].eq("Stage 2"), result["stage"].eq("Stage 3")],
@@ -58,7 +87,12 @@ def calculate_scenario_ecl(staged_portfolio: pd.DataFrame, scenario_name: str, p
 
 def calculate_all_scenarios(staged_portfolio: pd.DataFrame, config: dict[str, dict[str, float]] | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Calculate scenario ECL line items and portfolio summaries."""
-    scenario_config = config or DEFAULT_SCENARIOS
+    scenario_config = DEFAULT_SCENARIOS if config is None else config
+    if not validate_scenario_weights(scenario_config):
+        raise ValueError(
+            "Scenario weights must total 100%, remain between 0% and 100%, "
+            "and use non-negative finite PD/LGD multipliers."
+        )
     scenario_frames = [
         calculate_scenario_ecl(
             staged_portfolio,

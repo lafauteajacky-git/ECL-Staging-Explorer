@@ -9,15 +9,20 @@ import pandas as pd
 def calculate_ecl(staged_portfolio: pd.DataFrame) -> pd.DataFrame:
     """Calculate ECL according to simplified Stage 1, Stage 2 and Stage 3 rules."""
     result = staged_portfolio.copy()
+    pd_12m = pd.to_numeric(result["pd_12m"], errors="coerce").clip(0.0, 1.0)
+    pd_lifetime = pd.to_numeric(result["pd_lifetime"], errors="coerce").clip(0.0, 1.0)
+    lgd = pd.to_numeric(result["lgd"], errors="coerce").clip(0.0, 1.0)
+    ead = pd.to_numeric(result["ead"], errors="coerce")
     pd_for_ecl = np.select(
         [result["stage"].eq("Stage 1"), result["stage"].eq("Stage 2"), result["stage"].eq("Stage 3")],
-        [result["pd_12m"], result["pd_lifetime"], 1.0],
+        [pd_12m, pd_lifetime, 1.0],
         default=np.nan,
     )
 
     result["pd_used_for_ecl"] = pd_for_ecl
-    result["ecl"] = result["pd_used_for_ecl"] * result["lgd"] * result["ead"]
-    result["coverage_ratio"] = result["ecl"] / result["ead"]
+    result["lgd_used_for_ecl"] = lgd
+    result["ecl"] = result["pd_used_for_ecl"] * result["lgd_used_for_ecl"] * ead
+    result["coverage_ratio"] = np.where(ead > 0, result["ecl"] / ead, 0.0)
     return result
 
 
@@ -29,7 +34,11 @@ def summarize_ecl(ecl_portfolio: pd.DataFrame) -> pd.DataFrame:
         .sort_values("stage")
         .reset_index(drop=True)
     )
-    summary["coverage_ratio"] = summary["ecl"] / summary["ead"]
+    summary["coverage_ratio"] = np.where(
+        summary["ead"] > 0,
+        summary["ecl"] / summary["ead"],
+        0.0,
+    )
     return summary
 
 
