@@ -375,6 +375,25 @@ def apply_auria_theme() -> None:
             border-top: 1px solid rgba(255, 255, 255, 0.16);
         }
 
+        .kpi-grid-one {
+            grid-template-columns: minmax(0, 1fr);
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.16);
+        }
+
+        .kpi-grid-one .migration-kpi-item {
+            min-height: auto;
+            padding-left: 0;
+            border-right: 0;
+        }
+
+        .kpi-grid-one .migration-kpi-value {
+            font-size: clamp(1.35rem, 2vw, 1.9rem);
+            line-height: 1.15;
+            white-space: normal;
+        }
+
         .overlay-rule-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -513,9 +532,14 @@ def apply_auria_theme() -> None:
             }
 
             .kpi-grid-four,
-            .kpi-grid-two {
+            .kpi-grid-two,
+            .kpi-grid-one {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
                 row-gap: 20px;
+            }
+
+            .kpi-grid-one {
+                grid-template-columns: minmax(0, 1fr);
             }
 
             .overlay-rule-grid {
@@ -536,7 +560,8 @@ def apply_auria_theme() -> None:
             .migration-kpi-grid-secondary,
             .ecl-kpi-grid,
             .kpi-grid-four,
-            .kpi-grid-two {
+            .kpi-grid-two,
+            .kpi-grid-one {
                 grid-template-columns: minmax(0, 1fr);
             }
 
@@ -971,7 +996,12 @@ def render_kpi_panel(
     primary_class = "kpi-grid-four" if len(primary_metrics) == 4 else "migration-kpi-grid-primary"
     secondary_markup = ""
     if secondary_metrics:
-        secondary_class = "kpi-grid-two" if len(secondary_metrics) == 2 else "migration-kpi-grid-secondary"
+        if len(secondary_metrics) == 1:
+            secondary_class = "kpi-grid-one"
+        elif len(secondary_metrics) == 2:
+            secondary_class = "kpi-grid-two"
+        else:
+            secondary_class = "migration-kpi-grid-secondary"
         secondary_markup = (
             f'<div class="migration-kpi-grid {secondary_class}">'
             f"{''.join(metric_markup(metric) for metric in secondary_metrics)}"
@@ -3617,12 +3647,38 @@ def render_management_overlays(
     st.markdown("#### Règles des overlays actifs")
     render_overlay_rule_cards(overlay_parameters)
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("ECL avant overlay", format_currency(float(overlay_metrics["ecl_before_overlay"])))
-    col2.metric("Montant overlays", format_currency(float(overlay_metrics["total_overlay_amount"])))
-    col3.metric("ECL apres overlay", format_currency(float(overlay_metrics["ecl_after_overlay"])))
-    col4.metric("Variation", f"{overlay_metrics['overlay_variation_pct']:.2%}")
-    st.metric("Top overlay contributeur", overlay_metrics["top_overlay_contributor"])
+    render_kpi_panel(
+        "Synthese des ajustements manageriaux",
+        [
+            (
+                "ECL avant overlay",
+                format_compact_currency(float(overlay_metrics["ecl_before_overlay"])),
+                "ECL ponderee avant ajustement",
+            ),
+            (
+                "Montant des overlays",
+                format_compact_currency(float(overlay_metrics["total_overlay_amount"])),
+                "Ajustement manageriel total",
+            ),
+            (
+                "ECL apres overlay",
+                format_compact_currency(float(overlay_metrics["ecl_after_overlay"])),
+                "ECL finale apres ajustement",
+            ),
+            (
+                "Variation",
+                f"{float(overlay_metrics['overlay_variation_pct']):.2%}",
+                "Impact relatif sur l'ECL",
+            ),
+        ],
+        [
+            (
+                "Principal overlay contributeur",
+                str(overlay_metrics["top_overlay_contributor"]),
+                "Overlay generant le montant d'ajustement le plus eleve",
+            )
+        ],
+    )
 
     st.write("Synthese des overlays")
     st.dataframe(overlay_summary, width="stretch")
