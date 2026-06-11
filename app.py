@@ -959,8 +959,111 @@ def apply_auria_theme() -> None:
     )
 
 
-def render_brand_header(run_id: str | None = None) -> None:
-    """Render a compact Auria-style brand header."""
+def render_brand_header(run_id: str | None = None, compact: bool = False) -> None:
+    """Render the Auria brand header, compact on internal application pages."""
+    if compact:
+        st.markdown(
+            f"""
+            <div style="
+                display:flex;
+                align-items:center;
+                gap:10px;
+                margin:0 0 12px;
+                color:#0b2b46;
+            ">
+                <div aria-label="Auria Advisory logo mark" style="
+                    width:42px;
+                    height:42px;
+                    flex:0 0 42px;
+                    background-image:url('https://auria-advisory.fr/wp-content/uploads/2025/10/Logo-final-vertical-or-blanc-h.png');
+                    background-repeat:no-repeat;
+                    background-position:left center;
+                    background-size:138px auto;
+                "></div>
+                <div style="line-height:0.95;">
+                    <div style="font-family:Georgia, 'Times New Roman', serif;font-size:1.65rem;
+                        line-height:0.95;font-weight:900;letter-spacing:0.055em;color:#0b2b46;">AURIA</div>
+                    <div style="margin-top:4px;font-size:0.68rem;line-height:1;font-weight:900;
+                        letter-spacing:0.22em;color:#0b2b46;">ADVISORY</div>
+                </div>
+            </div>
+            <section class="auria-main-hero auria-compact-hero" style="
+                position:relative;
+                overflow:hidden;
+                border-radius:22px;
+                padding:20px 22px;
+                margin-bottom:18px;
+                color:#ffffff;
+                background:linear-gradient(135deg, #061d31, #0b2b46);
+                box-shadow:0 18px 44px rgba(11,43,70,0.14);
+            ">
+                <div class="auria-main-hero-grid" style="
+                    display:grid;
+                    grid-template-columns:minmax(0, 1.65fr) minmax(280px, 0.65fr);
+                    gap:22px;
+                    align-items:stretch;
+                ">
+                    <div>
+                        <div style="color:#f1a986;font-size:0.66rem;font-weight:950;
+                            letter-spacing:0.08em;text-transform:uppercase;margin-bottom:14px;">
+                            Auria Advisory | IFRS 9 ECL & Staging Systems
+                        </div>
+                        <h1 style="margin:0;color:#ffffff;font-size:clamp(2.15rem,4.2vw,3.65rem);
+                            line-height:0.98;font-weight:900;letter-spacing:0;">{APP_NAME}</h1>
+                        <p style="max-width:780px;margin:18px 0 0;color:rgba(255,255,255,0.86);
+                            font-size:0.9rem;line-height:1.55;">
+                            Demonstrateur IFRS 9 pour explorer le staging, les ECL,
+                            les scenarios macro et les overlays manageriaux.
+                        </p>
+                    </div>
+                    <aside style="border:1px solid rgba(255,255,255,0.18);border-radius:17px;
+                        background:rgba(255,255,255,0.12);padding:17px 16px;backdrop-filter:blur(12px);">
+                        <div style="color:#f1a986;font-size:0.68rem;font-weight:950;
+                            letter-spacing:0.11em;text-transform:uppercase;margin-bottom:12px;">
+                            Perimetre de demonstration
+                        </div>
+                        <div class="auria-scope-row"><span>Modeles</span><strong>Staging, ECL, scenarios</strong></div>
+                        <div class="auria-scope-row"><span>Gouvernance</span><strong>Overlays, audit trail</strong></div>
+                        <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.16);
+                            color:rgba(255,255,255,0.80);font-size:0.74rem;line-height:1.45;">
+                            Donnees 100% synthetiques - demonstrateur a vocation pedagogique.
+                            Ne pas utiliser pour la production, la comptabilisation ou le reporting reglementaire.
+                        </div>
+                    </aside>
+                </div>
+            </section>
+            <style>
+                .auria-main-hero.auria-compact-hero h1 {{
+                    font-size:clamp(2.15rem,4.2vw,3.65rem) !important;
+                }}
+                .auria-scope-row {{
+                    display:flex;
+                    justify-content:space-between;
+                    gap:14px;
+                    padding:9px 0;
+                    border-bottom:1px solid rgba(255,255,255,0.14);
+                    color:#ffffff;
+                    font-size:0.78rem;
+                }}
+                .auria-scope-row span {{
+                    color:rgba(255,255,255,0.68);
+                    font-size:0.66rem;
+                    font-weight:900;
+                    letter-spacing:0.08em;
+                    text-transform:uppercase;
+                }}
+                .auria-scope-row strong {{text-align:right;font-weight:900;}}
+                @media (max-width:1100px) {{
+                    .auria-main-hero.auria-compact-hero h1 {{
+                        font-size:clamp(2rem,6vw,3.1rem) !important;
+                    }}
+                }}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        return
+
     st.markdown(
         f"""
         <div style="
@@ -1642,7 +1745,10 @@ def main() -> None:
         )
         st.caption("Selectionnez une rubrique pour afficher son contenu.")
 
-    render_brand_header(st.session_state.get("run_id"))
+    render_brand_header(
+        st.session_state.get("run_id"),
+        compact=selected_page != "Accueil",
+    )
 
     if selected_page == "Accueil":
         render_home_introduction()
@@ -4124,35 +4230,55 @@ def render_audit_trail(audit_trail: dict[str, pd.DataFrame]) -> None:
     st.markdown("#### Transitions de stage et periodes de cure")
     transition_summary = audit_trail.get("staging_transition_summary", pd.DataFrame())
     if transition_summary is not None and not transition_summary.empty:
-        transition_columns = st.columns(3)
         stage_colors = {
             "Stage 1": "#8298AA",
             "Stage 2": "#F1A986",
             "Stage 3": "#0B2B46",
         }
-        for column, final_stage in zip(
-            transition_columns,
+        transition_tabs = st.tabs(
+            [
+                "Stage final 1",
+                "Stage final 2",
+                "Stage final 3",
+            ]
+        )
+        for tab, final_stage in zip(
+            transition_tabs,
             ["Stage 1", "Stage 2", "Stage 3"],
             strict=False,
         ):
             stage_transitions = transition_summary.loc[
                 transition_summary["stage"].eq(final_stage)
             ].copy()
-            with column:
+            with tab:
                 if stage_transitions.empty:
                     st.info(f"Aucune transition vers {final_stage}.")
                     continue
+                stage_transitions["transition_label"] = (
+                    stage_transitions["transition_rule"]
+                    .astype(str)
+                    .str.replace(" maintained during ", " maintenu - ", regex=False)
+                    .str.replace(" maintained", " maintenu", regex=False)
+                )
                 transition_chart = px.bar(
                     stage_transitions,
                     x="exposure_count",
-                    y="transition_rule",
+                    y="transition_label",
                     color="probation_status",
                     orientation="h",
                     text="exposure_count",
                     custom_data=["previous_stage", "ead", "probation_status"],
-                    title=f"Stage final : {final_stage}",
+                    title=f"Transitions et statuts de cure vers {final_stage}",
+                    color_discrete_sequence=[
+                        stage_colors[final_stage],
+                        "#F1A986",
+                        "#8298AA",
+                        "#14664A",
+                        "#6D7885",
+                    ],
                 )
                 transition_chart.update_traces(
+                    textposition="inside",
                     hovertemplate=(
                         "<b>%{y}</b><br>Expositions : %{x}<br>"
                         "Stage precedent : %{customdata[0]}<br>"
@@ -4163,13 +4289,25 @@ def render_audit_trail(audit_trail: dict[str, pd.DataFrame]) -> None:
                     marker_line_width=1,
                 )
                 transition_chart.update_layout(
-                    height=430,
+                    height=max(390, 72 * stage_transitions["transition_label"].nunique()),
+                    barmode="stack",
                     xaxis_title="Nombre d'expositions",
                     yaxis_title="",
-                    legend_title_text="Cure / probation",
+                    legend=dict(
+                        title_text="Cure / probation",
+                        orientation="h",
+                        yanchor="top",
+                        y=-0.20,
+                        xanchor="left",
+                        x=0,
+                    ),
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
-                    margin=dict(l=10, r=10, t=55, b=25),
+                    margin=dict(l=15, r=20, t=60, b=110),
+                )
+                transition_chart.update_yaxes(
+                    categoryorder="total ascending",
+                    automargin=True,
                 )
                 st.plotly_chart(transition_chart, width="stretch")
     else:
@@ -4314,25 +4452,56 @@ def render_committee_summary_visual(
     )
     st.caption(DEMO_DISCLAIMER_FR)
 
-    headline_cols = st.columns(4)
-    with headline_cols[0]:
-        render_kpi_card("Run ID", run_id, demo_profile)
-    with headline_cols[1]:
-        render_kpi_card("EAD totale", format_compact_currency(metrics["total_ead"]), "Portefeuille")
-    with headline_cols[2]:
-        render_kpi_card("ECL finale", format_compact_currency(float(overlay_metrics["ecl_after_overlay"])), "Apres scenarios et overlays")
-    with headline_cols[3]:
-        render_kpi_card("Taux de couverture", f"{metrics['coverage_ratio']:.2%}", "Modele avant overlay")
-
-    movement_cols = st.columns(4)
-    with movement_cols[0]:
-        render_kpi_card("Impact scenarios", format_compact_currency(scenario_metrics["weighted_impact_amount"]), f"{scenario_metrics['weighted_impact_pct']:.2%}")
-    with movement_cols[1]:
-        render_kpi_card("Impact overlays", format_compact_currency(float(overlay_metrics["total_overlay_amount"])), f"{overlay_metrics['overlay_variation_pct']:.2%}")
-    with movement_cols[2]:
-        render_kpi_card("Score coherence", f"{business_summary['business_consistency_score']:.1%}", f"{int(business_summary['business_alert_count'])} alerte(s)")
-    with movement_cols[3]:
-        render_kpi_card("Cas a revoir", str(metrics["review_required_count"]), "Priorisation metier")
+    final_ecl = float(overlay_metrics["ecl_after_overlay"])
+    final_coverage_ratio = final_ecl / float(metrics["total_ead"]) if metrics["total_ead"] else 0.0
+    st.caption(f"{run_id} | {demo_profile}")
+    render_kpi_panel(
+        "Synthese executive du comite",
+        [
+            (
+                "Expositions",
+                f"{int(metrics['exposure_count']):,}".replace(",", " "),
+                "Contrats analyses",
+            ),
+            (
+                "EAD totale",
+                format_compact_currency(metrics["total_ead"]),
+                "Portefeuille synthetique",
+            ),
+            (
+                "ECL finale",
+                format_compact_currency(final_ecl),
+                "Apres scenarios et overlays",
+            ),
+            (
+                "Taux de couverture final",
+                f"{final_coverage_ratio:.2%}",
+                "ECL finale / EAD",
+            ),
+        ],
+        [
+            (
+                "Impact scenarios",
+                format_compact_currency(scenario_metrics["weighted_impact_amount"]),
+                f"{scenario_metrics['weighted_impact_pct']:.2%} vs baseline",
+            ),
+            (
+                "Impact overlays",
+                format_compact_currency(float(overlay_metrics["total_overlay_amount"])),
+                f"{overlay_metrics['overlay_variation_pct']:.2%} de l'ECL avant overlay",
+            ),
+            (
+                "Score coherence",
+                f"{business_summary['business_consistency_score']:.1%}",
+                f"{int(business_summary['business_alert_count'])} alerte(s)",
+            ),
+            (
+                "Cas a revoir",
+                str(metrics["review_required_count"]),
+                "Priorisation metier",
+            ),
+        ],
+    )
 
     st.divider()
     st.markdown("#### Exposition et ECL par stage")
@@ -4353,8 +4522,16 @@ def render_committee_summary_visual(
             barmode="group",
             title="EAD et ECL par stage",
             text_auto=".2s",
+            color_discrete_map={"EAD": "#0B2B46", "ECL": "#F1A986"},
         )
-        stage_bar.update_layout(height=380, xaxis_title="", yaxis_title="Montant")
+        stage_bar.update_layout(
+            height=380,
+            xaxis_title="",
+            yaxis_title="Montant",
+            legend_title_text="",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
         st.plotly_chart(stage_bar, width="stretch")
     with stage_right:
         coverage_fig = px.bar(
@@ -4363,23 +4540,68 @@ def render_committee_summary_visual(
             y="coverage_ratio",
             title="Taux de couverture par stage",
             text_auto=".2%",
+            color_discrete_sequence=["#0B2B46"],
         )
-        coverage_fig.update_layout(height=380, xaxis_title="", yaxis_title="ECL / EAD")
+        coverage_fig.update_layout(
+            height=380,
+            xaxis_title="",
+            yaxis_title="ECL / EAD",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
         st.plotly_chart(coverage_fig, width="stretch")
 
     st.markdown("#### Contributions principales")
+    auria_contribution_colors = [
+        "#0B2B46",
+        "#F1A986",
+        "#6D7885",
+        "#14664A",
+        "#8298AA",
+        "#F7C6AE",
+    ]
     contribution_left, contribution_right = st.columns(2)
     with contribution_left:
         product_share = _build_top_share_frame(ecl_by_product, "product_type", "ecl", top_n=5)
-        product_fig = px.pie(product_share, names="label", values="amount", title="Part ECL par produit")
-        product_fig.update_traces(textposition="inside", textinfo="percent+label")
-        product_fig.update_layout(height=390, showlegend=False)
+        product_fig = px.pie(
+            product_share,
+            names="label",
+            values="amount",
+            title="Part ECL par produit",
+            color="label",
+            color_discrete_sequence=auria_contribution_colors,
+        )
+        product_fig.update_traces(
+            textposition="inside",
+            textinfo="percent+label",
+            marker=dict(line=dict(color="#FFFDF9", width=2)),
+        )
+        product_fig.update_layout(
+            height=390,
+            showlegend=False,
+            paper_bgcolor="rgba(0,0,0,0)",
+        )
         st.plotly_chart(product_fig, width="stretch")
     with contribution_right:
         sector_share = _build_top_share_frame(ecl_by_sector, "sector", "ecl", top_n=5)
-        sector_fig = px.pie(sector_share, names="label", values="amount", title="Part ECL par secteur")
-        sector_fig.update_traces(textposition="inside", textinfo="percent+label")
-        sector_fig.update_layout(height=390, showlegend=False)
+        sector_fig = px.pie(
+            sector_share,
+            names="label",
+            values="amount",
+            title="Part ECL par secteur",
+            color="label",
+            color_discrete_sequence=auria_contribution_colors,
+        )
+        sector_fig.update_traces(
+            textposition="inside",
+            textinfo="percent+label",
+            marker=dict(line=dict(color="#FFFDF9", width=2)),
+        )
+        sector_fig.update_layout(
+            height=390,
+            showlegend=False,
+            paper_bgcolor="rgba(0,0,0,0)",
+        )
         st.plotly_chart(sector_fig, width="stretch")
 
     top_product = _top_contribution_label(ecl_by_product, "product_type", "ecl")
