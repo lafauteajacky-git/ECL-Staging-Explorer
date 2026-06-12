@@ -15,6 +15,16 @@ from modules.calculation_utils import safe_divide
 
 EAD_METHOD = "Drawn exposure plus CCF-converted undrawn commitment"
 
+CALCULATED_EAD_COLUMNS = {
+    "ead_accounting",
+    "ead_drawn",
+    "ead_undrawn",
+    "ccf_adjusted",
+    "ead_off_balance",
+    "ead_at_default",
+    "ead_12m",
+}
+
 BASE_CCF_BY_PRODUCT = {
     "Mortgage": 0.00,
     "SME term loan": 0.20,
@@ -154,6 +164,11 @@ def calculate_ead(portfolio: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+def has_calculated_ead(portfolio: pd.DataFrame) -> bool:
+    """Return whether the portfolio already contains reusable EAD outputs."""
+    return CALCULATED_EAD_COLUMNS.issubset(portfolio.columns)
+
+
 def _ead_at_horizon(portfolio: pd.DataFrame, horizon_months: float | np.ndarray) -> pd.Series:
     """Calculate exposure at a contractual horizon."""
     drawn = _numeric_series(portfolio, "ead_accounting", np.nan).clip(lower=0)
@@ -207,7 +222,11 @@ def build_ead_term_structure(portfolio: pd.DataFrame) -> pd.DataFrame:
     if portfolio.empty:
         return pd.DataFrame(columns=columns)
 
-    source = calculate_ead(portfolio).reset_index(drop=True)
+    source = (
+        portfolio.copy()
+        if has_calculated_ead(portfolio)
+        else calculate_ead(portfolio)
+    ).reset_index(drop=True)
     maturity = _numeric_series(source, "residual_maturity_months", 12).fillna(12).clip(lower=1)
     annual_points = np.maximum(np.ceil(maturity.to_numpy() / 12.0).astype(int), 1)
     positions = np.repeat(np.arange(len(source)), annual_points)
@@ -265,7 +284,7 @@ def build_ead_term_structure(portfolio: pd.DataFrame) -> pd.DataFrame:
 
 def summarize_ead(portfolio: pd.DataFrame) -> dict[str, float | str]:
     """Return portfolio-level drawn, undrawn and CCF indicators."""
-    result = calculate_ead(portfolio)
+    result = portfolio.copy() if has_calculated_ead(portfolio) else calculate_ead(portfolio)
     drawn = _numeric_series(result, "ead_accounting").clip(lower=0).fillna(0)
     undrawn = _numeric_series(result, "ead_undrawn").clip(lower=0).fillna(0)
     off_balance = _numeric_series(result, "ead_off_balance").clip(lower=0).fillna(0)

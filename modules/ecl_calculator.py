@@ -6,7 +6,11 @@ import numpy as np
 import pandas as pd
 
 from modules.calculation_utils import safe_divide
-from modules.ead_engine import build_ead_term_structure, calculate_ead
+from modules.ead_engine import (
+    build_ead_term_structure,
+    calculate_ead,
+    has_calculated_ead,
+)
 
 
 def calculate_ecl(staged_portfolio: pd.DataFrame) -> pd.DataFrame:
@@ -17,7 +21,7 @@ def calculate_ecl(staged_portfolio: pd.DataFrame) -> pd.DataFrame:
         "ccf_base",
         "amortisation_type",
     }.issubset(result.columns)
-    if dynamic_ead_available:
+    if dynamic_ead_available and not has_calculated_ead(result):
         result = calculate_ead(result)
 
     pd_12m = pd.to_numeric(result["pd_12m"], errors="coerce").clip(0.0, 1.0)
@@ -82,11 +86,12 @@ def _calculate_stage2_lifetime_ecl(
     portfolio: pd.DataFrame,
 ) -> tuple[dict[str, float], dict[str, float]]:
     """Calculate discounted Stage 2 ECL over annual projected EAD periods."""
-    term = build_ead_term_structure(portfolio)
+    stage_2_portfolio = portfolio.loc[portfolio["stage"].eq("Stage 2")].copy()
+    term = build_ead_term_structure(stage_2_portfolio)
     if term.empty:
         return {}, {}
 
-    parameters = portfolio.set_index("loan_id")[
+    parameters = stage_2_portfolio.set_index("loan_id")[
         ["pd_12m", "lgd", "effective_interest_rate"]
     ]
     term = term.join(parameters, on="loan_id")
@@ -113,10 +118,6 @@ def _calculate_stage2_lifetime_ecl(
         * pd.to_numeric(term["ead_projected"], errors="coerce").clip(lower=0)
         * term["discount_factor"]
     )
-    stage_2_ids = set(
-        portfolio.loc[portfolio["stage"].eq("Stage 2"), "loan_id"]
-    )
-    term = term.loc[term["loan_id"].isin(stage_2_ids)]
     ecl_by_loan = term.groupby("loan_id")["period_ecl"].sum().to_dict()
     marginal_weight = term.groupby("loan_id")["marginal_pd"].sum()
     weighted_ead = (

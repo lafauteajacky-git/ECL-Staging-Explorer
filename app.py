@@ -715,16 +715,45 @@ def main() -> None:
         )
         st.stop()
 
+    scenario_pages = {
+        "Macro Scenarios",
+        "Dashboard",
+        "Audit Trail",
+        "Committee Summary",
+        "Export",
+    }
+    overlay_pages = {
+        "Management Overlays",
+        "Dashboard",
+        "Audit Trail",
+        "Committee Summary",
+        "Export",
+    }
+    governance_pages = {
+        "Dashboard",
+        "Audit Trail",
+        "Committee Summary",
+        "Export",
+    }
+
     try:
         with st.spinner("Calcul des indicateurs du portefeuille..."):
             portfolio_results = calculate_cached_portfolio_results(portfolio)
-            scenario_results = calculate_cached_scenario_results(
-                portfolio_results["ecl_portfolio"],
-                scenario_config,
+            scenario_results = (
+                calculate_cached_scenario_results(
+                    portfolio_results["ecl_portfolio"],
+                    scenario_config,
+                )
+                if selected_page in scenario_pages
+                else None
             )
-            overlay_calculations = calculate_cached_overlay_results(
-                portfolio_results["ecl_portfolio"],
-                tuple(enabled_overlays),
+            overlay_calculations = (
+                calculate_cached_overlay_results(
+                    portfolio_results["ecl_portfolio"],
+                    tuple(enabled_overlays),
+                )
+                if selected_page in overlay_pages
+                else None
             )
 
         findings = portfolio_results["findings"]
@@ -762,125 +791,151 @@ def main() -> None:
             "staging_transition_summary"
         ]
 
-        scenario_parameters = scenario_results["scenario_parameters"]
-        scenario_line_items = scenario_results["scenario_line_items"]
-        scenario_summary = scenario_results["scenario_summary"]
-        scenario_metrics = scenario_results["scenario_metrics"]
-        downside_by_stage = scenario_results["downside_by_stage"]
-        scenario_insights = scenario_results["scenario_insights"]
-
-        overlay_results = overlay_calculations["overlay_results"]
-        overlay_summary = overlay_calculations["overlay_summary"]
-        overlay_parameters = overlay_calculations["overlay_parameters"]
-        overlay_metrics = overlay_calculations["overlay_metrics"]
-        overlay_waterfall = overlay_calculations["overlay_waterfall"]
-        overlay_insights = overlay_calculations["overlay_insights"]
-
-        client_discussion_points = build_client_discussion_points(
-            active_demo_profile,
-            business_summary,
-            metrics,
-            scenario_metrics,
-            overlay_metrics,
-        )
-        insights = build_management_insights(
-            ecl_portfolio,
-            ecl_by_stage,
-            ecl_by_product,
-            findings,
-            scenario_insights + overlay_insights + build_profile_insights(active_demo_profile, metrics, overlay_metrics),
-            business_summary,
-        )
         run_datetime = st.session_state.get("run_datetime", datetime.now())
         run_id = st.session_state.get("run_id", generate_run_id(run_datetime))
-        review_cases = ecl_portfolio.loc[ecl_portfolio["review_required"]].copy()
-        audit_view = build_audit_view(
-            run_datetime,
-            len(ecl_portfolio),
-            len(findings),
-            scenario_parameters,
-            scenario_summary,
-            scenario_metrics,
-            overlay_parameters,
-            overlay_summary,
-            overlay_metrics,
-            overlay_results.loc[overlay_results["overlay_applied"]],
-        )
-        audit_view["business_consistency"] = pd.DataFrame(
-            [{"metric": metric, "value": value} for metric, value in business_summary.items()]
-        )
-        audit_view["business_alerts"] = business_alerts
-        audit_view["risk_parameter_summary"] = pd.DataFrame(
-            [
-                {"metric": metric, "value": value}
-                for metric, value in risk_parameter_summary.items()
-            ]
-        )
-        audit_view["lifetime_pd_curve"] = lifetime_pd_curve
-        audit_view["ead_summary"] = pd.DataFrame(
-            [
-                {"metric": metric, "value": value}
-                for metric, value in ead_summary.items()
-            ]
-        )
-        audit_view["ead_curve_by_product"] = ead_curve_by_product
-        audit_view["lgd_summary"] = pd.DataFrame(
-            [
-                {"metric": metric, "value": value}
-                for metric, value in lgd_summary.items()
-            ]
-        )
-        audit_view["lgd_sensitivity"] = lgd_sensitivity
-        audit_view["staging_transitions"] = staging_transition_summary
-        dashboard_summary = build_dashboard_summary_table(metrics, scenario_metrics | overlay_metrics | business_summary)
-        detailed_audit_trail = build_audit_trail(
-            run_id,
-            run_datetime,
-            metrics,
-            scenario_metrics,
-            overlay_metrics,
-            ecl_by_stage,
-            scenario_parameters,
-            scenario_summary,
-            overlay_parameters,
-            overlay_summary,
-            findings,
-            review_cases,
-            top_contributors,
-            audit_view["staging_rules"],
-            audit_view["ecl_assumptions"],
-            business_summary,
-            business_alerts,
-            client_discussion_points,
-            active_demo_profile,
-            staging_transition_summary=staging_transition_summary,
-            risk_parameter_summary=risk_parameter_summary,
-            lifetime_pd_curve=lifetime_pd_curve,
-            lgd_summary=lgd_summary,
-            lgd_sensitivity=lgd_sensitivity,
-            ead_summary=ead_summary,
-            ead_curve=ead_curve_by_product,
-        )
-        committee_summary = generate_committee_summary(
-            run_id,
-            metrics,
-            scenario_metrics,
-            overlay_metrics,
-            ecl_by_stage,
-            ecl_by_product,
-            ecl_by_sector,
-            staged.groupby("stage", as_index=False).size().rename(columns={"size": "count"}),
-            scenario_parameters,
-            scenario_summary,
-            overlay_summary,
-            dq_summary,
-            len(review_cases),
-            top_contributors,
-            insights,
-            business_summary,
-            client_discussion_points,
-            active_demo_profile,
-        )
+
+        if scenario_results is not None:
+            scenario_parameters = scenario_results["scenario_parameters"]
+            scenario_line_items = scenario_results["scenario_line_items"]
+            scenario_summary = scenario_results["scenario_summary"]
+            scenario_metrics = scenario_results["scenario_metrics"]
+            downside_by_stage = scenario_results["downside_by_stage"]
+            scenario_insights = scenario_results["scenario_insights"]
+
+        if overlay_calculations is not None:
+            overlay_results = overlay_calculations["overlay_results"]
+            overlay_summary = overlay_calculations["overlay_summary"]
+            overlay_parameters = overlay_calculations["overlay_parameters"]
+            overlay_metrics = overlay_calculations["overlay_metrics"]
+            overlay_waterfall = overlay_calculations["overlay_waterfall"]
+            overlay_insights = overlay_calculations["overlay_insights"]
+
+        if selected_page in governance_pages:
+            client_discussion_points = build_client_discussion_points(
+                active_demo_profile,
+                business_summary,
+                metrics,
+                scenario_metrics,
+                overlay_metrics,
+            )
+            insights = build_management_insights(
+                ecl_portfolio,
+                ecl_by_stage,
+                ecl_by_product,
+                findings,
+                scenario_insights
+                + overlay_insights
+                + build_profile_insights(
+                    active_demo_profile,
+                    metrics,
+                    overlay_metrics,
+                ),
+                business_summary,
+            )
+            review_cases = ecl_portfolio.loc[
+                ecl_portfolio["review_required"]
+            ].copy()
+            audit_view = build_audit_view(
+                run_datetime,
+                len(ecl_portfolio),
+                len(findings),
+                scenario_parameters,
+                scenario_summary,
+                scenario_metrics,
+                overlay_parameters,
+                overlay_summary,
+                overlay_metrics,
+                overlay_results.loc[overlay_results["overlay_applied"]],
+            )
+            audit_view["business_consistency"] = pd.DataFrame(
+                [
+                    {"metric": metric, "value": value}
+                    for metric, value in business_summary.items()
+                ]
+            )
+            audit_view["business_alerts"] = business_alerts
+            audit_view["risk_parameter_summary"] = pd.DataFrame(
+                [
+                    {"metric": metric, "value": value}
+                    for metric, value in risk_parameter_summary.items()
+                ]
+            )
+            audit_view["lifetime_pd_curve"] = lifetime_pd_curve
+            audit_view["ead_summary"] = pd.DataFrame(
+                [
+                    {"metric": metric, "value": value}
+                    for metric, value in ead_summary.items()
+                ]
+            )
+            audit_view["ead_curve_by_product"] = ead_curve_by_product
+            audit_view["lgd_summary"] = pd.DataFrame(
+                [
+                    {"metric": metric, "value": value}
+                    for metric, value in lgd_summary.items()
+                ]
+            )
+            audit_view["lgd_sensitivity"] = lgd_sensitivity
+            audit_view["staging_transitions"] = staging_transition_summary
+
+            if selected_page in {"Audit Trail", "Export"}:
+                detailed_audit_trail = build_audit_trail(
+                    run_id,
+                    run_datetime,
+                    metrics,
+                    scenario_metrics,
+                    overlay_metrics,
+                    ecl_by_stage,
+                    scenario_parameters,
+                    scenario_summary,
+                    overlay_parameters,
+                    overlay_summary,
+                    findings,
+                    review_cases,
+                    top_contributors,
+                    audit_view["staging_rules"],
+                    audit_view["ecl_assumptions"],
+                    business_summary,
+                    business_alerts,
+                    client_discussion_points,
+                    active_demo_profile,
+                    staging_transition_summary=staging_transition_summary,
+                    risk_parameter_summary=risk_parameter_summary,
+                    lifetime_pd_curve=lifetime_pd_curve,
+                    lgd_summary=lgd_summary,
+                    lgd_sensitivity=lgd_sensitivity,
+                    ead_summary=ead_summary,
+                    ead_curve=ead_curve_by_product,
+                )
+
+            if selected_page in {"Committee Summary", "Export"}:
+                committee_summary = generate_committee_summary(
+                    run_id,
+                    metrics,
+                    scenario_metrics,
+                    overlay_metrics,
+                    ecl_by_stage,
+                    ecl_by_product,
+                    ecl_by_sector,
+                    staged.groupby("stage", as_index=False)
+                    .size()
+                    .rename(columns={"size": "count"}),
+                    scenario_parameters,
+                    scenario_summary,
+                    overlay_summary,
+                    dq_summary,
+                    len(review_cases),
+                    top_contributors,
+                    insights,
+                    business_summary,
+                    client_discussion_points,
+                    active_demo_profile,
+                )
+
+            if selected_page == "Export":
+                dashboard_summary = build_dashboard_summary_table(
+                    metrics,
+                    scenario_metrics | overlay_metrics | business_summary,
+                )
     except Exception as exc:
         st.error(f"Calcul impossible : {exc}")
         st.stop()

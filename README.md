@@ -66,6 +66,10 @@ La V1 ne propose aucun import de fichier externe. Tous les portefeuilles sont ge
   `LGD Sensitivity`, `EAD Parameters` et `EAD Curve`.
 - Calcul des courbes lifetime vectorise et cache des resultats par portefeuille,
   scenario et configuration d'overlays pour fluidifier la navigation Streamlit.
+- Staging et commentaires metier vectorises, sans traitement ligne a ligne.
+- Projections EAD lifetime limitees aux seules expositions Stage 2.
+- Calculs scenarios, overlays, audit trail et note comite charges uniquement
+  lorsque l'onglet consulte les requiert.
 
 ## Installation
 

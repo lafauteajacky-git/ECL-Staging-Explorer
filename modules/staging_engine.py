@@ -246,7 +246,31 @@ def assign_stage(portfolio: pd.DataFrame) -> pd.DataFrame:
         default="No probation",
     )
     staged["returned_to_stage_1_flag"] = stage_2_to_1 | stage_3_to_1
-    staged["stage_comment"] = staged.apply(_build_stage_comment, axis=1)
+    cure_related = (
+        staged["stage_reason"]
+        .fillna("")
+        .astype(str)
+        .str.contains("cure|probation", case=False, regex=True)
+    )
+    base_comment = (
+        staged["transition_rule"].astype(str)
+        + ": "
+        + staged["stage_reason"].astype(str)
+        + "."
+    )
+    cure_comment = (
+        staged["transition_rule"].astype(str)
+        + ": "
+        + staged["stage_reason"].astype(str)
+        + ". Cure/probation observee sur "
+        + cure_months.round().astype(int).astype(str)
+        + " mois selon les seuils pedagogiques du demonstrateur."
+    )
+    staged["stage_comment"] = np.where(
+        cure_related,
+        cure_comment,
+        base_comment,
+    )
     return staged
 
 

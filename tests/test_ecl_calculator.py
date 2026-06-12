@@ -1,6 +1,8 @@
 import pandas as pd
 import pytest
 
+import modules.ecl_calculator as ecl_calculator
+from modules.ead_engine import calculate_ead
 from modules.ecl_calculator import calculate_ecl, calculate_portfolio_metrics, summarize_ecl
 
 
@@ -88,3 +90,89 @@ def test_stage2_uses_projected_amortising_ead_and_marginal_pd():
     assert result.loc[0, "ead_at_default"] > 1_000
     assert result.loc[0, "ecl"] < static_ecl
     assert "projected EAD" in result.loc[0, "ecl_method"]
+
+
+def test_dynamic_ecl_reuses_precalculated_ead(monkeypatch):
+    portfolio = calculate_ead(
+        pd.DataFrame(
+            [
+                {
+                    "loan_id": "LN-1",
+                    "stage": "Stage 1",
+                    "product_type": "Credit card",
+                    "current_rating": 4,
+                    "pd_12m": 0.02,
+                    "pd_lifetime": 0.08,
+                    "lgd": 0.40,
+                    "ead": 1_000.0,
+                    "effective_interest_rate": 0.05,
+                    "residual_maturity_months": 24,
+                    "undrawn_commitment": 500.0,
+                    "ccf_base": 0.75,
+                    "amortisation_type": "Revolving",
+                }
+            ]
+        )
+    )
+
+    def unexpected_recalculation(_portfolio):
+        raise AssertionError("EAD should be reused when calculated columns exist")
+
+    monkeypatch.setattr(ecl_calculator, "calculate_ead", unexpected_recalculation)
+
+    result = calculate_ecl(portfolio)
+
+    assert result.loc[0, "ecl"] > 0
+
+
+def test_lifetime_projection_is_limited_to_stage2(monkeypatch):
+    portfolio = pd.DataFrame(
+        [
+            {
+                "loan_id": "LN-1",
+                "stage": "Stage 1",
+                "product_type": "SME term loan",
+                "current_rating": 4,
+                "pd_12m": 0.02,
+                "pd_lifetime": 0.08,
+                "lgd": 0.40,
+                "ead": 1_000.0,
+                "effective_interest_rate": 0.05,
+                "residual_maturity_months": 36,
+                "undrawn_commitment": 100.0,
+                "ccf_base": 0.20,
+                "amortisation_type": "Amortising",
+            },
+            {
+                "loan_id": "LN-2",
+                "stage": "Stage 2",
+                "product_type": "SME term loan",
+                "current_rating": 6,
+                "pd_12m": 0.08,
+                "pd_lifetime": 0.22,
+                "lgd": 0.45,
+                "ead": 2_000.0,
+                "effective_interest_rate": 0.05,
+                "residual_maturity_months": 36,
+                "undrawn_commitment": 200.0,
+                "ccf_base": 0.20,
+                "amortisation_type": "Amortising",
+            },
+        ]
+    )
+    original_builder = ecl_calculator.build_ead_term_structure
+    projected_stages = []
+
+    def capture_projection(projected_portfolio):
+        projected_stages.extend(projected_portfolio["stage"].unique().tolist())
+        return original_builder(projected_portfolio)
+
+    monkeypatch.setattr(
+        ecl_calculator,
+        "build_ead_term_structure",
+        capture_projection,
+    )
+
+    calculate_ecl(portfolio)
+
+    assert projected_stages == ["Stage 2"]
