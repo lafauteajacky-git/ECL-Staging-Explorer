@@ -9,7 +9,7 @@ import pandas as pd
 from modules.demo_config import DEMO_DISCLAIMER_FR
 
 
-APP_VERSION = "V2.1"
+APP_VERSION = "V2.2"
 
 
 def generate_run_id(run_datetime: datetime | None = None) -> str:
@@ -43,6 +43,8 @@ def build_audit_trail(
     lifetime_pd_curve: pd.DataFrame | None = None,
     lgd_summary: dict | None = None,
     lgd_sensitivity: pd.DataFrame | None = None,
+    ead_summary: dict | None = None,
+    ead_curve: pd.DataFrame | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Build a detailed, Excel-friendly audit trail."""
     warnings = [
@@ -53,6 +55,8 @@ def build_audit_trail(
         "LGD calculee sur des recouvrements synthetiques actualises au taux d'interet effectif.",
         "Valeurs de suretes, haircuts, couts et delais de recouvrement non calibres sur des donnees bancaires reelles.",
         "PD lifetime calculee par taux de hasard annuel constant derive de la PD 12 mois.",
+        "EAD projetee avec echeanciers synthetiques, engagements non tires et CCF pedagogiques.",
+        "CCF et comportements de tirage non calibres sur des historiques bancaires reels.",
         "Periodes de cure pedagogiques: 3 mois Stage 3 vers Stage 2, 6 mois Stage 2 vers Stage 1 et 12 mois pour un retour exceptionnel Stage 3 vers Stage 1.",
     ]
     run_summary = pd.DataFrame(
@@ -128,4 +132,13 @@ def build_audit_trail(
         )
     if lgd_sensitivity is not None:
         audit_trail["lgd_sensitivity"] = lgd_sensitivity.copy()
+    if ead_summary is not None:
+        audit_trail["ead_summary"] = pd.DataFrame(
+            [
+                {"metric": metric, "value": value}
+                for metric, value in ead_summary.items()
+            ]
+        )
+    if ead_curve is not None:
+        audit_trail["ead_curve"] = ead_curve.copy()
     return audit_trail

@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from modules.calculation_utils import safe_divide
+from modules.ecl_calculator import calculate_ecl
 from modules.lgd_engine import LGD_SCENARIOS, calculate_lgd
 
 
@@ -92,12 +93,14 @@ def calculate_scenario_ecl(staged_portfolio: pd.DataFrame, scenario_name: str, p
     result["pd_lifetime_adjusted"] = (pd_lifetime * pd_multiplier).clip(0.0, 1.0)
     result["lgd_adjusted"] = (lgd * lgd_multiplier).clip(0.0, 1.0)
 
-    result["pd_used_for_scenario"] = np.select(
-        [result["stage"].eq("Stage 1"), result["stage"].eq("Stage 2"), result["stage"].eq("Stage 3")],
-        [result["pd_12m_adjusted"], result["pd_lifetime_adjusted"], 1.0],
-        default=np.nan,
-    )
-    result[f"ecl_{scenario_name.lower()}"] = result["pd_used_for_scenario"] * result["lgd_adjusted"] * result["ead"]
+    scenario_input = result.copy()
+    scenario_input["pd_12m"] = result["pd_12m_adjusted"]
+    scenario_input["pd_lifetime"] = result["pd_lifetime_adjusted"]
+    scenario_input["lgd"] = result["lgd_adjusted"]
+    scenario_calculation = calculate_ecl(scenario_input)
+    result["pd_used_for_scenario"] = scenario_calculation["pd_used_for_ecl"]
+    result["ead_used_for_scenario"] = scenario_calculation["ead_used_for_ecl"]
+    result[f"ecl_{scenario_name.lower()}"] = scenario_calculation["ecl"]
     result["scenario_ecl"] = result[f"ecl_{scenario_name.lower()}"]
     return result
 

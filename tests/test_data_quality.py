@@ -173,6 +173,19 @@ def test_raw_quality_catalogue_detects_invalid_lgd_assumptions():
     assert results.loc["VALID_RECOVERY_DELAY", "exception_count"] == 1
 
 
+def test_raw_quality_catalogue_detects_invalid_ead_assumptions():
+    portfolio = generate_portfolio(n_exposures=12, seed=7)
+    portfolio.loc[0, "undrawn_commitment"] = -1
+    portfolio.loc[1, "ccf_base"] = 1.20
+    portfolio.loc[2, "credit_limit"] = 0
+
+    results = run_raw_data_quality_tests(portfolio).set_index("test_id")
+
+    assert results.loc["VALID_UNDRAWN_COMMITMENT", "exception_count"] == 1
+    assert results.loc["VALID_CCF", "exception_count"] == 1
+    assert results.loc["CONSISTENCY_CREDIT_LIMIT", "exception_count"] == 1
+
+
 def test_raw_quality_catalogue_identifies_non_evaluable_timeliness():
     portfolio = generate_portfolio(n_exposures=10, seed=8)
     results = run_raw_data_quality_tests(portfolio).set_index("test_id")

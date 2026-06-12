@@ -59,3 +59,32 @@ def test_ecl_floors_negative_pd_and_lgd_and_handles_zero_ead():
     assert result.loc[0, "ecl"] == 0.0
     assert result.loc[0, "coverage_ratio"] == 0.0
     assert summary.loc[0, "coverage_ratio"] == 0.0
+
+
+def test_stage2_uses_projected_amortising_ead_and_marginal_pd():
+    portfolio = pd.DataFrame(
+        [
+            {
+                "loan_id": "LN-2",
+                "stage": "Stage 2",
+                "product_type": "SME term loan",
+                "current_rating": 6,
+                "pd_12m": 0.10,
+                "pd_lifetime": 1 - (1 - 0.10) ** 3,
+                "lgd": 0.40,
+                "ead": 1_000.0,
+                "effective_interest_rate": 0.05,
+                "residual_maturity_months": 36,
+                "undrawn_commitment": 200.0,
+                "ccf_base": 0.20,
+                "amortisation_type": "Amortising",
+            }
+        ]
+    )
+
+    result = calculate_ecl(portfolio)
+    static_ecl = portfolio.loc[0, "pd_lifetime"] * 0.40 * 1_000
+
+    assert result.loc[0, "ead_at_default"] > 1_000
+    assert result.loc[0, "ecl"] < static_ecl
+    assert "projected EAD" in result.loc[0, "ecl_method"]

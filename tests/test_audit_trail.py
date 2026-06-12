@@ -32,6 +32,14 @@ def test_build_audit_trail_returns_required_sections():
         lgd_sensitivity=pd.DataFrame(
             {"scenario": ["Baseline"], "lgd": [0.40]}
         ),
+        ead_summary={"ead_drawn": 1000, "ccf_weighted": 0.40},
+        ead_curve=pd.DataFrame(
+            {
+                "product_type": ["SME term loan"],
+                "year": [1],
+                "ead_projected": [900],
+            }
+        ),
     )
 
     assert "run_summary" in audit
@@ -40,6 +48,8 @@ def test_build_audit_trail_returns_required_sections():
     assert "methodological_warnings" in audit
     assert "lgd_summary" in audit
     assert "lgd_sensitivity" in audit
+    assert "ead_summary" in audit
+    assert "ead_curve" in audit
     assert "run_id" in set(audit["run_summary"]["field"])
 
 

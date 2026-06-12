@@ -36,6 +36,13 @@ from modules.data_quality import (
 )
 from modules.data_types import coerce_boolean_series
 from modules.demo_config import APP_NAME, DEMO_DISCLAIMER_FR, EXPORT_FILE_PREFIX
+from modules.ead_engine import (
+    EAD_METHOD,
+    aggregate_ead_curve,
+    build_ead_term_structure,
+    calculate_ead,
+    summarize_ead,
+)
 from modules.ecl_calculator import calculate_ecl
 from modules.lgd_engine import (
     LGD_METHOD,
@@ -137,13 +144,15 @@ def calculate_cached_portfolio_results(portfolio: pd.DataFrame) -> dict:
     """Calculate portfolio-dependent results once per generated portfolio."""
     findings = run_data_quality_checks(portfolio)
     raw_quality_tests = run_raw_data_quality_tests(portfolio)
+    staged = calculate_ead(assign_stage(portfolio))
     staged = calculate_lgd(
-        assign_stage(portfolio),
+        staged,
         scenario="Baseline",
         preserve_missing_lgd=True,
     )
     ecl_portfolio = build_review_flags(calculate_ecl(staged), findings)
     lifetime_pd_term_structure = build_lifetime_pd_term_structure(ecl_portfolio)
+    ead_term_structure = build_ead_term_structure(ecl_portfolio)
     staging_transition_summary = (
         staged.groupby(
             ["previous_stage", "stage", "transition_rule", "probation_status"],
@@ -174,6 +183,16 @@ def calculate_cached_portfolio_results(portfolio: pd.DataFrame) -> dict:
         "staged": staged,
         "ecl_portfolio": ecl_portfolio,
         "risk_parameter_summary": summarize_risk_parameters(ecl_portfolio),
+        "ead_summary": summarize_ead(ecl_portfolio),
+        "ead_term_structure": ead_term_structure,
+        "ead_curve_by_product": aggregate_ead_curve(
+            ead_term_structure,
+            "product_type",
+        ),
+        "ead_curve_by_stage": aggregate_ead_curve(
+            ead_term_structure,
+            "stage",
+        ),
         "lgd_summary": summarize_lgd(ecl_portfolio),
         "lgd_by_stage": aggregate_lgd_by_dimension(ecl_portfolio, "stage"),
         "lgd_by_product": aggregate_lgd_by_dimension(
@@ -622,6 +641,11 @@ def main() -> None:
         "recovery_delay_months",
         "recovery_cost_amount",
         "seniority",
+        "undrawn_commitment",
+        "credit_limit",
+        "ccf_base",
+        "amortisation_type",
+        "ead_method",
     }
     portfolio_requires_risk_upgrade = (
         "portfolio" in st.session_state
@@ -712,6 +736,10 @@ def main() -> None:
         staged = portfolio_results["staged"]
         ecl_portfolio = portfolio_results["ecl_portfolio"]
         risk_parameter_summary = portfolio_results["risk_parameter_summary"]
+        ead_summary = portfolio_results["ead_summary"]
+        ead_term_structure = portfolio_results["ead_term_structure"]
+        ead_curve_by_product = portfolio_results["ead_curve_by_product"]
+        ead_curve_by_stage = portfolio_results["ead_curve_by_stage"]
         lgd_summary = portfolio_results["lgd_summary"]
         lgd_by_stage = portfolio_results["lgd_by_stage"]
         lgd_by_product = portfolio_results["lgd_by_product"]
@@ -789,6 +817,13 @@ def main() -> None:
             ]
         )
         audit_view["lifetime_pd_curve"] = lifetime_pd_curve
+        audit_view["ead_summary"] = pd.DataFrame(
+            [
+                {"metric": metric, "value": value}
+                for metric, value in ead_summary.items()
+            ]
+        )
+        audit_view["ead_curve_by_product"] = ead_curve_by_product
         audit_view["lgd_summary"] = pd.DataFrame(
             [
                 {"metric": metric, "value": value}
@@ -823,6 +858,8 @@ def main() -> None:
             lifetime_pd_curve=lifetime_pd_curve,
             lgd_summary=lgd_summary,
             lgd_sensitivity=lgd_sensitivity,
+            ead_summary=ead_summary,
+            ead_curve=ead_curve_by_product,
         )
         committee_summary = generate_committee_summary(
             run_id,
@@ -848,10 +885,10 @@ def main() -> None:
         st.error(f"Calcul impossible : {exc}")
         st.stop()
     if selected_page == "Accueil":
-        render_home(metrics, active_demo_profile, portfolio=portfolio, show_introduction=False)
+        render_home(metrics, active_demo_profile, portfolio=ecl_portfolio, show_introduction=False)
 
     elif selected_page == "Portefeuille":
-        render_portfolio_dashboard(portfolio, metrics)
+        render_portfolio_dashboard(ecl_portfolio, metrics)
 
     elif selected_page == "Data Quality":
         render_raw_data_quality_dashboard(
@@ -876,6 +913,10 @@ def main() -> None:
             lgd_by_collateral,
             lgd_sensitivity,
             lgd_waterfall,
+            ead_summary,
+            ead_term_structure,
+            ead_curve_by_product,
+            ead_curve_by_stage,
         )
 
     elif selected_page == "Staging":
@@ -1037,6 +1078,35 @@ def main() -> None:
                 if column in ecl_portfolio.columns
             ]
         ]
+        ead_parameter_columns = [
+            "loan_id",
+            "client_id",
+            "stage",
+            "product_type",
+            "sector",
+            "country",
+            "residual_maturity_months",
+            "amortisation_type",
+            "payment_frequency",
+            "ead_accounting",
+            "credit_limit",
+            "undrawn_commitment",
+            "utilisation_rate",
+            "ccf_base",
+            "ccf_adjusted",
+            "ead_off_balance",
+            "ead_at_default",
+            "ead_12m",
+            "ead_used_for_ecl",
+            "ead_method",
+        ]
+        ead_parameter_export = ecl_portfolio[
+            [
+                column
+                for column in ead_parameter_columns
+                if column in ecl_portfolio.columns
+            ]
+        ]
         export_bytes = build_excel_export_bytes(
             portfolio,
             findings,
@@ -1057,6 +1127,8 @@ def main() -> None:
             lifetime_pd_curve=lifetime_pd_curve,
             lgd_parameters=lgd_parameter_export,
             lgd_sensitivity=lgd_sensitivity,
+            ead_parameters=ead_parameter_export,
+            ead_curve=ead_curve_by_product,
         )
         if st.button("Exporter dans le dossier outputs"):
             try:
@@ -1082,6 +1154,8 @@ def main() -> None:
                     lifetime_pd_curve=lifetime_pd_curve,
                     lgd_parameters=lgd_parameter_export,
                     lgd_sensitivity=lgd_sensitivity,
+                    ead_parameters=ead_parameter_export,
+                    ead_curve=ead_curve_by_product,
                 )
                 st.success(f"Export cree : {output_path}")
             except Exception as exc:
@@ -1276,9 +1350,10 @@ def render_portfolio_summary(
                 <div><strong>{collateral_rate:.1%}</strong><br><span>avec collateral</span></div>
             </div>
             <p style="margin:20px 0 0; color:rgba(255,255,255,0.76); font-size:0.82rem; line-height:1.55;">
-                Le jeu simule des ratings de 1 a 10, PD 12 mois et lifetime, LGD, EAD, maturites,
-                jours de retard, defaut, forbearance, watchlist, collateral et LTV. Les distributions
-                sont pedagogiques, reproductibles par seed et non calibrees sur une banque reelle.
+                Le jeu simule des ratings de 1 a 10, PD 12 mois et lifetime, LGD, encours tires,
+                engagements non tires, CCF, echeanciers amortissables, maturites, jours de retard,
+                defaut, forbearance, watchlist, collateral et LTV. Les distributions sont pedagogiques,
+                reproductibles par seed et non calibrees sur une banque reelle.
             </p>
         </section>
         """,
@@ -3173,6 +3248,78 @@ def render_audit_trail(audit_trail: dict[str, pd.DataFrame]) -> None:
             r"\mathrm{PD}_{cum}(t)=1-\left(1-\mathrm{PD}_{12m}\right)^t"
         )
 
+    ead_summary_table = audit_trail.get("ead_summary", pd.DataFrame())
+    ead_values = _audit_section_to_dict(
+        ead_summary_table,
+        "metric",
+        "value",
+    )
+    if ead_values:
+        st.markdown("#### EAD, engagements non tires et CCF")
+        render_light_kpi_panel(
+            "Hypotheses d'exposition du run",
+            [
+                (
+                    "Encours tire",
+                    format_compact_currency(
+                        float(ead_values.get("ead_drawn", 0))
+                    ),
+                    "Exposition comptable",
+                ),
+                (
+                    "Engagement non tire",
+                    format_compact_currency(
+                        float(ead_values.get("undrawn_commitment", 0))
+                    ),
+                    "Limites disponibles",
+                ),
+                (
+                    "EAD hors bilan",
+                    format_compact_currency(
+                        float(ead_values.get("ead_off_balance", 0))
+                    ),
+                    "Apres application du CCF",
+                ),
+                (
+                    "CCF moyen",
+                    f"{float(ead_values.get('ccf_weighted', 0)):.1%}",
+                    "Pondere par le non-tire",
+                ),
+            ],
+        )
+        st.latex(
+            r"\mathrm{EAD}_t=\mathrm{Encours\ residuel}_t"
+            r"+\mathrm{CCF}\times\mathrm{Engagement\ non\ tire}_t"
+        )
+        ead_curve = audit_trail.get("ead_curve", pd.DataFrame())
+        if (
+            ead_curve is not None
+            and not ead_curve.empty
+            and {"product_type", "year", "ead_projected"}.issubset(
+                ead_curve.columns
+            )
+        ):
+            ead_audit_figure = px.line(
+                ead_curve,
+                x="year",
+                y="ead_projected",
+                color="product_type",
+                markers=True,
+                title="Projection de l'EAD par produit",
+                labels={
+                    "year": "Horizon (annees)",
+                    "ead_projected": "EAD projetee",
+                    "product_type": "Produit",
+                },
+            )
+            ead_audit_figure.update_layout(
+                height=360,
+                legend_title_text="",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(ead_audit_figure, width="stretch")
+
     lgd_summary_table = audit_trail.get("lgd_summary", pd.DataFrame())
     lgd_values = _audit_section_to_dict(
         lgd_summary_table,
@@ -3539,6 +3686,42 @@ def render_lgd_methodology_popover() -> None:
         )
 
 
+def render_ead_methodology_popover() -> None:
+    """Explain drawn exposure, undrawn commitments, CCF and amortisation."""
+    with st.popover("Comprendre l'EAD", icon=":material/info:"):
+        st.markdown("#### Exposure at Default")
+        st.write(
+            "L'**EAD** represente l'exposition attendue au moment du defaut. "
+            "Elle combine l'encours deja tire et la part susceptible d'etre "
+            "tiree sur les engagements disponibles."
+        )
+        st.latex(
+            r"\mathrm{EAD}=\mathrm{Encours\ tire}"
+            r"+\mathrm{CCF}\times\mathrm{Engagement\ non\ tire}"
+        )
+        st.markdown(
+            """
+            - **Encours tire** : montant deja utilise par le client.
+            - **Engagement non tire** : limite encore disponible.
+            - **CCF** : Credit Conversion Factor, estimation de la fraction du
+              non-tire qui serait utilisee avant le defaut.
+            - **Amortissable** : l'encours diminue progressivement.
+            - **In fine** : l'encours reste stable jusqu'a la maturite.
+            - **Revolving** : l'exposition peut rester disponible et etre retiree.
+            """
+        )
+        st.latex(
+            r"\mathrm{ECL}_{Stage\,2}"
+            r"=\sum_t \mathrm{PD}_{marginale,t}\times\mathrm{LGD}_t"
+            r"\times\mathrm{EAD}_t\times\mathrm{DF}_t"
+        )
+        st.caption(
+            "Les profils d'amortissement et les CCF sont synthetiques. "
+            "Une implementation reelle requerrait des historiques de tirage, "
+            "de remboursement anticipe et de comportement avant defaut."
+        )
+
+
 def render_risk_parameters(
     portfolio: pd.DataFrame,
     summary: dict[str, float | str],
@@ -3550,13 +3733,17 @@ def render_risk_parameters(
     lgd_by_collateral: pd.DataFrame,
     lgd_sensitivity: pd.DataFrame,
     lgd_waterfall: pd.DataFrame,
+    ead_summary: dict[str, float | str],
+    ead_term_structure: pd.DataFrame,
+    ead_curve_by_product: pd.DataFrame,
+    ead_curve_by_stage: pd.DataFrame,
 ) -> None:
-    """Render the methodological view of PD, recovery-based LGD and future EAD."""
+    """Render the methodological view of PD, dynamic EAD and recovery-based LGD."""
     st.subheader("Parametres de risque")
     st.write(
-        "Lecture methodologique des probabilites de defaut et de la LGD utilisees "
-        "dans le calcul ECL. La V2 introduit une courbe de PD lifetime cumulative "
-        "derivee de la PD 12 mois et de la maturite residuelle."
+        "Lecture methodologique des probabilites de defaut, de l'exposition au "
+        "defaut et de la LGD utilisees dans le calcul ECL. Les courbes PD et EAD "
+        "permettent une lecture dynamique du risque sur la maturite residuelle."
     )
     render_kpi_panel(
         "Synthese des parametres de risque",
@@ -3745,6 +3932,253 @@ def render_risk_parameters(
             plot_bgcolor="rgba(0,0,0,0)",
         )
         st.plotly_chart(marginal_figure, width="stretch")
+
+    ead_title, ead_help = st.columns([0.78, 0.22], vertical_alignment="center")
+    with ead_title:
+        st.markdown("### EAD dynamique et engagements")
+    with ead_help:
+        render_ead_methodology_popover()
+    st.write(
+        "L'EAD integre les encours tires, les engagements non tires convertis "
+        "par un CCF et un profil d'amortissement adapte au type de produit."
+    )
+    render_kpi_panel(
+        "Synthese EAD, engagements et CCF",
+        [
+            (
+                "Encours tire",
+                format_compact_currency(float(ead_summary["ead_drawn"])),
+                "Exposition comptable actuelle",
+            ),
+            (
+                "Engagement non tire",
+                format_compact_currency(
+                    float(ead_summary["undrawn_commitment"])
+                ),
+                "Limites encore disponibles",
+            ),
+            (
+                "EAD hors bilan",
+                format_compact_currency(float(ead_summary["ead_off_balance"])),
+                "Non-tire converti par le CCF",
+            ),
+            (
+                "EAD apres CCF",
+                format_compact_currency(float(ead_summary["ead_at_default"])),
+                "Exposition estimee au defaut",
+            ),
+        ],
+        [
+            (
+                "CCF moyen",
+                f"{float(ead_summary['ccf_weighted']):.1%}",
+                "Pondere par les engagements non tires",
+            ),
+            (
+                "Taux d'utilisation",
+                f"{float(ead_summary['utilisation_rate']):.1%}",
+                "Encours tire / limite totale",
+            ),
+            (
+                "Methode EAD",
+                "Amortissement + CCF",
+                "Approche synthetique explicable",
+            ),
+        ],
+    )
+
+    with st.container(border=True):
+        st.markdown("#### Formules pedagogiques de l'EAD")
+        st.latex(
+            r"\mathrm{EAD}_0=\mathrm{Encours\ tire}"
+            r"+\mathrm{CCF}\times\mathrm{Engagement\ non\ tire}"
+        )
+        st.latex(
+            r"\mathrm{EAD}_t=\mathrm{Encours\ residuel}_t"
+            r"+\mathrm{CCF}_{ajuste}\times\mathrm{Non\ tire\ residuel}_t"
+        )
+        st.caption(
+            "Le CCF est ajuste de maniere pedagogique selon le produit, le stage, "
+            "le rating et le niveau d'utilisation. Les prets amortissables "
+            "diminuent progressivement, les prets in fine restent stables jusqu'a "
+            "maturite et les produits revolving conservent leur capacite de tirage."
+        )
+
+    ead_display = portfolio.copy()
+    for column in [
+        "ead_accounting",
+        "ead_off_balance",
+        "undrawn_commitment",
+        "ccf_adjusted",
+    ]:
+        ead_display[column] = pd.to_numeric(
+            ead_display.get(column),
+            errors="coerce",
+        ).fillna(0)
+    ead_by_product = (
+        ead_display.groupby("product_type", as_index=False)
+        .agg(
+            encours_tire=("ead_accounting", "sum"),
+            ead_hors_bilan=("ead_off_balance", "sum"),
+            engagement_non_tire=("undrawn_commitment", "sum"),
+            ccf_moyen=("ccf_adjusted", "mean"),
+        )
+        .sort_values("encours_tire", ascending=False)
+    )
+
+    ead_left, ead_right = st.columns(2)
+    with ead_left:
+        ead_composition = ead_by_product.melt(
+            id_vars=["product_type"],
+            value_vars=["encours_tire", "ead_hors_bilan"],
+            var_name="composante",
+            value_name="montant",
+        )
+        ead_composition["composante"] = ead_composition["composante"].map(
+            {
+                "encours_tire": "Encours tire",
+                "ead_hors_bilan": "EAD hors bilan apres CCF",
+            }
+        )
+        composition_figure = px.bar(
+            ead_composition,
+            x="product_type",
+            y="montant",
+            color="composante",
+            barmode="stack",
+            title="Composition de l'EAD par produit",
+            labels={
+                "product_type": "Produit",
+                "montant": "Montant (EUR)",
+                "composante": "",
+            },
+            color_discrete_map={
+                "Encours tire": "#0B2B46",
+                "EAD hors bilan apres CCF": "#F1A986",
+            },
+        )
+        composition_figure.update_layout(
+            height=410,
+            legend_title_text="",
+            xaxis_tickangle=-15,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=10, r=10, t=55, b=70),
+        )
+        st.plotly_chart(composition_figure, width="stretch")
+    with ead_right:
+        ccf_figure = px.bar(
+            ead_by_product,
+            x="product_type",
+            y="ccf_moyen",
+            text_auto=".1%",
+            title="CCF moyen par produit",
+            labels={"product_type": "Produit", "ccf_moyen": "CCF moyen"},
+            color="ccf_moyen",
+            color_continuous_scale=[
+                [0.0, "#F7D7C7"],
+                [0.55, "#F1A986"],
+                [1.0, "#0B2B46"],
+            ],
+        )
+        ccf_figure.update_layout(
+            height=410,
+            yaxis_tickformat=".0%",
+            coloraxis_showscale=False,
+            xaxis_tickangle=-15,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=10, r=10, t=55, b=70),
+        )
+        st.plotly_chart(ccf_figure, width="stretch")
+
+    curve_left, curve_right = st.columns(2)
+    with curve_left:
+        if not ead_curve_by_product.empty:
+            product_curve = px.line(
+                ead_curve_by_product,
+                x="year",
+                y="ead_projected",
+                color="product_type",
+                markers=True,
+                title="EAD projetee par produit",
+                labels={
+                    "year": "Horizon (annees)",
+                    "ead_projected": "EAD projetee",
+                    "product_type": "Produit",
+                },
+            )
+            product_curve.update_layout(
+                height=430,
+                legend_title_text="",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                margin=dict(l=10, r=10, t=55, b=30),
+            )
+            st.plotly_chart(product_curve, width="stretch")
+    with curve_right:
+        if not ead_curve_by_stage.empty:
+            stage_curve = px.line(
+                ead_curve_by_stage,
+                x="year",
+                y="ead_projected",
+                color="stage",
+                markers=True,
+                title="EAD projetee par stage",
+                labels={
+                    "year": "Horizon (annees)",
+                    "ead_projected": "EAD projetee",
+                    "stage": "Stage",
+                },
+                color_discrete_map={
+                    "Stage 1": "#8298AA",
+                    "Stage 2": "#F1A986",
+                    "Stage 3": "#0B2B46",
+                },
+            )
+            stage_curve.update_layout(
+                height=430,
+                legend_title_text="",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                margin=dict(l=10, r=10, t=55, b=30),
+            )
+            st.plotly_chart(stage_curve, width="stretch")
+
+    amortisation_summary = (
+        ead_display.groupby("amortisation_type", as_index=False)
+        .agg(
+            exposure_count=("loan_id", "count"),
+            ead_at_default=("ead", "sum"),
+            engagement_non_tire=("undrawn_commitment", "sum"),
+        )
+        .sort_values("ead_at_default", ascending=False)
+    )
+    amortisation_figure = px.bar(
+        amortisation_summary,
+        x="amortisation_type",
+        y="ead_at_default",
+        text_auto=".3s",
+        title="EAD par profil d'amortissement",
+        labels={
+            "amortisation_type": "Profil contractuel",
+            "ead_at_default": "EAD apres CCF",
+        },
+        color="amortisation_type",
+        color_discrete_map={
+            "Amortising": "#8298AA",
+            "Bullet": "#0B2B46",
+            "Revolving": "#F1A986",
+        },
+    )
+    amortisation_figure.update_layout(
+        height=380,
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=10, r=10, t=55, b=30),
+    )
+    st.plotly_chart(amortisation_figure, width="stretch")
 
     lgd_title, lgd_help = st.columns([0.78, 0.22], vertical_alignment="center")
     with lgd_title:
@@ -4140,9 +4574,9 @@ def render_risk_parameters(
             "Recouvrements garantis et non garantis, couts, delais et actualisation.",
         ),
         (
-            "EAD - prochaine etape",
-            "EAD constante",
-            "Architecture prete pour amortissement, CCF, tirages futurs et prepayments.",
+            "EAD V2.2",
+            EAD_METHOD,
+            "Echeanciers amortissables, engagements non tires et CCF ajustes.",
         ),
     ]
     for column, (label, value, detail) in zip(
@@ -4452,18 +4886,18 @@ def render_ecl_formula_view() -> None:
     formulas = [
         (
             "Stage 1",
-            r"\mathrm{ECL}_{12m} = \mathrm{PD}_{12m} \times \mathrm{LGD} \times \mathrm{EAD}",
-            "Pertes attendues a 12 mois pour les expositions performantes.",
+            r"\mathrm{ECL}_{12m} = \mathrm{PD}_{12m} \times \mathrm{LGD} \times \overline{\mathrm{EAD}}_{12m}",
+            "EAD moyenne a 12 mois, incluant les engagements convertis par CCF.",
         ),
         (
             "Stage 2",
-            r"\mathrm{ECL}_{LT} = \mathrm{PD}_{lifetime} \times \mathrm{LGD} \times \mathrm{EAD}",
-            "Pertes attendues sur la duree de vie apres augmentation significative du risque.",
+            r"\mathrm{ECL}_{LT} = \sum_t \mathrm{PD}_{marg,t} \times \mathrm{LGD}_t \times \mathrm{EAD}_t \times \mathrm{DF}_t",
+            "EAD projetee par periode sur la duree de vie residuelle.",
         ),
         (
             "Stage 3",
-            r"\mathrm{ECL}_{default} = 100\% \times \mathrm{LGD} \times \mathrm{EAD}",
-            "Proxy pedagogique applique aux expositions en defaut ou credit-impaired.",
+            r"\mathrm{ECL}_{default} = 100\% \times \mathrm{LGD} \times \mathrm{EAD}_{courante}",
+            "EAD courante incluant la part hors bilan convertie par CCF.",
         ),
     ]
     for column, (stage, formula, description) in zip(formula_columns, formulas, strict=False):

@@ -87,6 +87,27 @@ def test_generated_portfolio_contains_recovery_based_lgd_fields():
     assert portfolio["lgd"].between(0, 1).all()
 
 
+def test_generated_portfolio_contains_dynamic_ead_fields():
+    portfolio = generate_demo_portfolio(
+        profile="Balanced Portfolio",
+        n_exposures=100,
+        seed=7,
+    )
+
+    expected_fields = {
+        "undrawn_commitment",
+        "credit_limit",
+        "utilisation_rate",
+        "ccf_base",
+        "amortisation_type",
+        "payment_frequency",
+        "ead_method",
+    }
+    assert expected_fields.issubset(portfolio.columns)
+    assert (portfolio["credit_limit"] >= portfolio["ead"].clip(lower=0)).all()
+    assert portfolio["ccf_base"].between(0, 1).all()
+
+
 def test_all_data_quality_levels_preserve_portfolio_size():
     for level in DATA_QUALITY_LEVELS:
         portfolio = generate_demo_portfolio(

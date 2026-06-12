@@ -25,7 +25,7 @@ Les profils disponibles sont : `Balanced Portfolio`, `Low Risk Portfolio`, `Dete
 
 Les KPI principaux sont disponibles dans l'accueil et le dashboard :
 
-- `EAD totale` : exposition totale au defaut.
+- `EAD totale` : encours tire augmente des engagements non tires convertis par CCF.
 - `ECL totale` : perte de credit attendue calculee par le MVP.
 - `Taux de couverture` : ECL / EAD.
 - `Part Stage 2` et `Part Stage 3` : part des expositions ayant migre vers des stages plus sensibles.
@@ -45,9 +45,9 @@ Les regles simplifiees sont :
 
 L'onglet `ECL Calculation` affiche l'ECL ligne a ligne.
 
-- Stage 1 : PD 12M x LGD x EAD.
-- Stage 2 : PD lifetime x LGD x EAD.
-- Stage 3 : 100% x LGD x EAD.
+- Stage 1 : PD 12M x LGD x EAD moyenne a 12 mois.
+- Stage 2 : somme des PD marginales x EAD projetee x LGD x actualisation.
+- Stage 3 : 100% x LGD x EAD courante incluant la partie non tiree convertie.
 
 Les champs `review_required` et `review_reason` indiquent les expositions a revoir.
 
@@ -106,12 +106,16 @@ Le fichier suit le format :
 ECL_Staging_Explorer_RUN-YYYYMMDD-HHMMSS.xlsx
 ```
 
-L'export contient notamment les onglets `Disclaimer`, `Portfolio`, `Data Quality Issues`, `Staging Results`, `ECL Results`, `Risk Parameters`, `Lifetime PD Curve`, `LGD Parameters`, `LGD Sensitivity`, `Dashboard Summary`, `Audit Trail`, `Committee Summary`, `Business Consistency`, `Demo Storyline` et `Client Discussion Points`.
+L'export contient notamment les onglets `Disclaimer`, `Portfolio`, `Data Quality Issues`, `Staging Results`, `ECL Results`, `Risk Parameters`, `Lifetime PD Curve`, `LGD Parameters`, `LGD Sensitivity`, `EAD Parameters`, `EAD Curve`, `Dashboard Summary`, `Audit Trail`, `Committee Summary`, `Business Consistency`, `Demo Storyline` et `Client Discussion Points`.
 
 ## Lire les parametres de risque
 
 L'onglet `Parametres de risque` presente :
 
+- l'encours tire, les engagements non tires et la partie convertie par CCF ;
+- le CCF moyen pondere, le taux d'utilisation et l'EAD apres conversion ;
+- les courbes d'EAD projetees par produit et par stage ;
+- la repartition des profils `Amortising`, `Bullet` et `Revolving` ;
 - la PD 12 mois moyenne ponderee par l'EAD ;
 - la PD lifetime cumulative moyenne ;
 - le multiplicateur entre PD lifetime et PD 12 mois ;
@@ -137,3 +141,11 @@ La LGD V2.1 suit la formule pedagogique :
 Les valeurs de suretes, rangs de seniorite, haircuts, couts et delais sont synthetiques et ne
 remplacent pas un modele LGD calibre sur des historiques de defaut et de
 recouvrement.
+
+L'EAD V2.2 suit la formule pedagogique :
+
+`EAD = encours tire + CCF ajuste x engagement non tire`
+
+Les engagements non tires, CCF et echeanciers sont entierement synthetiques.
+Ils ne remplacent pas un modele CCF calibre sur les tirages observes avant
+defaut ni un moteur contractuel de cash-flows.

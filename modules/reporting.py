@@ -63,9 +63,9 @@ STAGING_RULES = [
 
 
 ECL_ASSUMPTIONS = [
-    {"stage": "Stage 1", "pd_used": "12-month PD", "formula": "ECL = PD 12M x LGD x EAD"},
-    {"stage": "Stage 2", "pd_used": "Lifetime PD", "formula": "ECL = PD lifetime x LGD x EAD"},
-    {"stage": "Stage 3", "pd_used": "100% PD proxy", "formula": "ECL = 100% x LGD x EAD"},
+    {"stage": "Stage 1", "pd_used": "12-month PD", "formula": "ECL = PD 12M x LGD x average 12-month EAD"},
+    {"stage": "Stage 2", "pd_used": "Marginal lifetime PD", "formula": "ECL = sum(PD marginal x LGD x projected EAD x discount factor)"},
+    {"stage": "Stage 3", "pd_used": "100% PD proxy", "formula": "ECL = 100% x LGD x current EAD including CCF"},
 ]
 
 
@@ -337,6 +337,8 @@ def build_excel_export_bytes(
     lifetime_pd_curve: pd.DataFrame | None = None,
     lgd_parameters: pd.DataFrame | None = None,
     lgd_sensitivity: pd.DataFrame | None = None,
+    ead_parameters: pd.DataFrame | None = None,
+    ead_curve: pd.DataFrame | None = None,
 ) -> bytes:
     """Build the V0.3 Excel export in memory."""
     buffer = BytesIO()
@@ -361,6 +363,8 @@ def build_excel_export_bytes(
         lifetime_pd_curve,
         lgd_parameters,
         lgd_sensitivity,
+        ead_parameters,
+        ead_curve,
     )
     return buffer.getvalue()
 
@@ -386,6 +390,8 @@ def export_results_to_excel(
     lifetime_pd_curve: pd.DataFrame | None = None,
     lgd_parameters: pd.DataFrame | None = None,
     lgd_sensitivity: pd.DataFrame | None = None,
+    ead_parameters: pd.DataFrame | None = None,
+    ead_curve: pd.DataFrame | None = None,
 ) -> Path:
     """Export MVP results to the outputs directory and return the file path."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -412,6 +418,8 @@ def export_results_to_excel(
         lifetime_pd_curve,
         lgd_parameters,
         lgd_sensitivity,
+        ead_parameters,
+        ead_curve,
     )
 
     return output_path
@@ -438,6 +446,8 @@ def _write_excel_export(
     lifetime_pd_curve: pd.DataFrame | None = None,
     lgd_parameters: pd.DataFrame | None = None,
     lgd_sensitivity: pd.DataFrame | None = None,
+    ead_parameters: pd.DataFrame | None = None,
+    ead_curve: pd.DataFrame | None = None,
 ) -> None:
     with pd.ExcelWriter(target, engine="openpyxl") as writer:
         pd.DataFrame({"disclaimer": [DEMO_DISCLAIMER_FR]}).to_excel(writer, sheet_name="Disclaimer", index=False)
@@ -464,6 +474,10 @@ def _write_excel_export(
             lgd_parameters.to_excel(writer, sheet_name="LGD Parameters", index=False)
         if lgd_sensitivity is not None:
             lgd_sensitivity.to_excel(writer, sheet_name="LGD Sensitivity", index=False)
+        if ead_parameters is not None:
+            ead_parameters.to_excel(writer, sheet_name="EAD Parameters", index=False)
+        if ead_curve is not None:
+            ead_curve.to_excel(writer, sheet_name="EAD Curve", index=False)
         if demo_storyline is not None:
             demo_storyline.to_excel(writer, sheet_name="Demo Storyline", index=False)
         if client_discussion_points is not None:

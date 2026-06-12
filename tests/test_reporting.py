@@ -132,6 +132,21 @@ def test_excel_export_includes_v2_risk_parameter_sheets():
         lgd_sensitivity=pd.DataFrame(
             {"scenario": ["Baseline"], "lgd": [0.40]}
         ),
+        ead_parameters=pd.DataFrame(
+            {
+                "loan_id": ["LN-1"],
+                "ead_accounting": [100.0],
+                "undrawn_commitment": [20.0],
+                "ccf_adjusted": [0.50],
+            }
+        ),
+        ead_curve=pd.DataFrame(
+            {
+                "product_type": ["SME term loan"],
+                "year": [1],
+                "ead_projected": [90.0],
+            }
+        ),
     )
 
     workbook = load_workbook(BytesIO(payload), read_only=True)
@@ -140,3 +155,5 @@ def test_excel_export_includes_v2_risk_parameter_sheets():
     assert "Lifetime PD Curve" in workbook.sheetnames
     assert "LGD Parameters" in workbook.sheetnames
     assert "LGD Sensitivity" in workbook.sheetnames
+    assert "EAD Parameters" in workbook.sheetnames
+    assert "EAD Curve" in workbook.sheetnames

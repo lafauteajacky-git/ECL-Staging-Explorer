@@ -28,7 +28,7 @@ Le demonstrateur aide a illustrer en rendez-vous client ou en atelier interne :
 
 La V1 ne propose aucun import de fichier externe. Tous les portefeuilles sont generes localement par le moteur de donnees synthetiques du demonstrateur.
 
-## Fonctionnalites principales V2.1
+## Fonctionnalites principales V2.2
 
 - Profils de portefeuille de demonstration : `Balanced`, `Low Risk`, `Deteriorated`, `Data Quality Issues`, `CRE Stress`.
 - Data quality checks et score qualite.
@@ -57,8 +57,13 @@ La V1 ne propose aucun import de fichier externe. Tous les portefeuilles sont ge
   delais de recovery.
 - Hypotheses de workout plus prudentes pour le Stage 3.
 - Sensibilites LGD `Baseline`, `Downside` et `Upside`.
+- EAD dynamique combinant encours tire et engagement non tire converti par CCF.
+- Echeanciers synthetiques `Amortising`, `Bullet` et `Revolving`.
+- Projection de l'EAD par horizon, produit et stage pour le calcul lifetime.
+- Stage 1 calcule sur l'EAD moyenne a 12 mois et Stage 2 sur une somme
+  multi-periodes des EAD projetees.
 - Exports `Risk Parameters`, `Lifetime PD Curve`, `LGD Parameters` et
-  `LGD Sensitivity`.
+  `LGD Sensitivity`, `EAD Parameters` et `EAD Curve`.
 - Calcul des courbes lifetime vectorise et cache des resultats par portefeuille,
   scenario et configuration d'overlays pour fluidifier la navigation Streamlit.
 
@@ -155,6 +160,7 @@ modules/
   ecl_calculator.py
   risk_parameters.py
   lgd_engine.py
+  ead_engine.py
   scenario_engine.py
   overlay_engine.py
   reporting.py
@@ -186,6 +192,10 @@ La logique metier est dans `modules/`. Le package `ui/` centralise le theme, le 
 - Pas de modele macroeconometrique.
 - Pas de courbes PD lifetime calibrees.
 - Les flux de recouvrement LGD sont synthetiques et non calibres.
+- Les engagements non tires, CCF et profils d'amortissement sont synthetiques
+  et non calibres sur des comportements clients observes.
+- Pas de modele de tirage comportemental, remboursement anticipe, revolving
+  dynamique ou contractual cash-flow engine.
 - Pas de projection multi-periodes detaillee des cash-flows de recouvrement.
 - Pas de valorisation externe, reappraisal ou volatilite historique des suretes.
 - Pas de workflow d'approbation des overlays.

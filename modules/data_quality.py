@@ -324,6 +324,43 @@ def run_raw_data_quality_tests(portfolio: pd.DataFrame) -> pd.DataFrame:
         pd.to_numeric(portfolio["ead"], errors="coerce").le(0) | pd.to_numeric(portfolio["ead"], errors="coerce").isna(),
         severity="Critical",
     )
+    if "undrawn_commitment" in portfolio:
+        undrawn = pd.to_numeric(
+            portfolio["undrawn_commitment"],
+            errors="coerce",
+        )
+        add_test(
+            "VALID_UNDRAWN_COMMITMENT",
+            "Validite",
+            "Engagement non tire positif ou nul",
+            "undrawn_commitment",
+            undrawn.lt(0) | undrawn.isna(),
+            severity="Critical",
+        )
+    if "ccf_base" in portfolio:
+        ccf = pd.to_numeric(portfolio["ccf_base"], errors="coerce")
+        add_test(
+            "VALID_CCF",
+            "Validite",
+            "CCF compris entre 0% et 100%",
+            "ccf_base",
+            ~ccf.between(0, 1, inclusive="both"),
+            severity="Critical",
+        )
+    if {"credit_limit", "undrawn_commitment"}.issubset(portfolio.columns):
+        credit_limit = pd.to_numeric(
+            portfolio["credit_limit"],
+            errors="coerce",
+        )
+        drawn = pd.to_numeric(portfolio["ead"], errors="coerce")
+        add_test(
+            "CONSISTENCY_CREDIT_LIMIT",
+            "Coherence",
+            "Limite de credit superieure ou egale a l'encours tire",
+            "credit_limit / ead",
+            credit_limit.lt(drawn.clip(lower=0)) | credit_limit.isna(),
+            severity="Critical",
+        )
     add_test(
         "VALID_PD_12M",
         "Validite",

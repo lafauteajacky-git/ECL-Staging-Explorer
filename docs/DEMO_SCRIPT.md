@@ -46,6 +46,9 @@ Expliquer que la V2 utilise une hypothese de taux de hasard constant,
 transparente et facilement remplacable par des courbes calibrees dans une
 implementation client. Presenter ensuite la LGD V2.1 : suretes, haircuts,
 couts, delais de recouvrement, actualisation et sensibilite downside.
+Presenter enfin l'EAD V2.2 : encours tire, engagement non tire, CCF et profils
+d'amortissement. Montrer comment l'EAD projetee diminue sur les contrats
+amortissables et reste disponible sur les facilites revolving.
 
 Montrer le score de coherence, les alertes et les recommandations.
 
@@ -65,9 +68,9 @@ Ouvrir `ECL Calculation`.
 
 Expliquer les formules simples par stage :
 
-- Stage 1 : PD 12M ;
-- Stage 2 : PD lifetime ;
-- Stage 3 : proxy 100% x LGD x EAD.
+- Stage 1 : PD 12M appliquee a l'EAD moyenne a 12 mois ;
+- Stage 2 : PD marginales et EAD projetee sur la duree de vie ;
+- Stage 3 : proxy 100% x LGD x EAD incluant le non tire converti.
 
 Message cle : le MVP reste volontairement pedagogique.
 

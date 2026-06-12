@@ -6,7 +6,7 @@ ECL Staging Explorer est un demonstrateur pedagogique et commercial. Il utilise 
 
 ## Donnees synthetiques
 
-Le portefeuille est genere artificiellement avec des champs representatifs d'un schema IFRS 9 simplifie : EAD, PD, LGD, rating, DPD, defaut, forbearance, watchlist, collateraux et LTV.
+Le portefeuille est genere artificiellement avec des champs representatifs d'un schema IFRS 9 simplifie : encours tires, engagements non tires, CCF, EAD, PD, LGD, rating, DPD, defaut, forbearance, watchlist, collateraux et LTV.
 
 Les distributions ne sont pas calibrees sur des donnees bancaires reelles.
 
@@ -46,6 +46,38 @@ Depuis la V2, la PD lifetime est calculee a partir de la PD 12 mois et de la mat
 Cette approche suppose un taux de hasard annuel constant. La PD marginale correspond a la variation de PD cumulative entre deux horizons successifs. Un horizon minimal d'un an est applique pour rester coherent avec la convention simplifiee de PD 12 mois du demonstrateur.
 
 Il n'y a pas de courbe PIT/TTC calibree, de matrice de transition, de segmentation modele, de vintage analysis ou de validation statistique.
+
+## EAD, engagements non tires et echeanciers
+
+Depuis la V2.2, l'EAD distingue l'encours comptable tire de l'engagement non
+tire. L'EAD courante est calculee selon :
+
+`EAD = encours tire + CCF ajuste x engagement non tire`
+
+Le CCF de base depend du produit synthetique. Il est ajuste de maniere
+pedagogique selon le stage, le rating et le taux d'utilisation, puis borne
+entre 0% et 100%.
+
+Trois profils d'echeancier sont utilises :
+
+- `Amortising` : reduction lineaire de l'encours jusqu'a la maturite ;
+- `Bullet` : maintien de l'encours jusqu'a l'echeance ;
+- `Revolving` : maintien d'une exposition disponible, avec conversion de la
+  partie non tiree par CCF.
+
+Pour le Stage 1, le demonstrateur utilise une EAD moyenne sur les douze
+prochains mois. Pour le Stage 2, l'ECL lifetime est la somme des pertes
+annuelles :
+
+`ECL lifetime = somme(PD marginale(t) x EAD projetee(t) x LGD x facteur d'actualisation(t))`
+
+Pour le Stage 3, l'EAD courante incluant la partie non tiree convertie est
+utilisee avec l'hypothese de PD a 100%.
+
+Ces hypotheses ne constituent pas un modele EAD/CCF calibre. Elles n'integrent
+pas les comportements de tirage avant defaut, les remboursements anticipes,
+les limites annulables, les calendriers contractuels fins, les utilisations
+saisonnieres ou les modeles specifiques aux facilites revolving.
 
 ## LGD fondee sur les recouvrements
 
