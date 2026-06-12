@@ -3,6 +3,7 @@ import pandas as pd
 from modules.lgd_engine import (
     aggregate_lgd_by_dimension,
     add_synthetic_lgd_inputs,
+    build_lgd_driver_views,
     build_lgd_sensitivity,
     build_lgd_waterfall,
     calculate_lgd,
@@ -134,3 +135,20 @@ def test_lgd_aggregation_falls_back_when_collateral_type_is_missing():
         "Collateralise - type non renseigne",
         "Non collateralise",
     }
+
+
+def test_lgd_driver_views_cover_key_recovery_concepts():
+    portfolio = calculate_lgd(
+        _recovery_portfolio().assign(
+            collateral_type=["Residential real estate", "Unsecured"],
+        ),
+        preserve_missing_lgd=False,
+    )
+
+    views = build_lgd_driver_views(portfolio)
+
+    assert set(views) == {"coverage", "ltv", "assumptions", "delay"}
+    assert set(views["coverage"]["statut"]) == {"Avec surete", "Sans surete"}
+    assert {"Haircut", "Cout de liquidation"}.issubset(
+        set(views["assumptions"]["hypothese"])
+    )

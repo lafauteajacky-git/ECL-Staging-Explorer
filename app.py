@@ -40,6 +40,7 @@ from modules.ecl_calculator import calculate_ecl
 from modules.lgd_engine import (
     LGD_METHOD,
     aggregate_lgd_by_dimension,
+    build_lgd_driver_views,
     build_lgd_sensitivity,
     build_lgd_waterfall,
     calculate_lgd,
@@ -3464,6 +3465,80 @@ def _render_audit_bullets(title: str, table: pd.DataFrame | None, columns: list[
         st.caption(f"{len(table) - limit} ligne(s) supplementaire(s) disponibles dans les details auditables.")
 
 
+def render_pd_methodology_popover() -> None:
+    """Explain the pedagogical PD concepts without overloading the main page."""
+    with st.popover("Comprendre la PD", icon=":material/info:"):
+        st.markdown("#### Probabilite de defaut")
+        st.write(
+            "La **PD 12 mois** mesure la probabilite qu'une exposition fasse "
+            "defaut au cours des douze prochains mois."
+        )
+        st.write(
+            "La **PD lifetime** mesure la probabilite cumulee de defaut sur "
+            "toute la duree de vie residuelle de l'exposition. Elle est utilisee "
+            "pour les expositions en Stage 2."
+        )
+        st.latex(
+            r"\mathrm{PD}_{lifetime}(t)"
+            r"=1-\left(1-\mathrm{PD}_{12m}\right)^t"
+        )
+        st.write(
+            "La **PD marginale** correspond au risque de defaut additionnel "
+            "entre deux horizons successifs."
+        )
+        st.latex(
+            r"\mathrm{PD}_{marginale}(t)"
+            r"=\mathrm{PD}_{cum}(t)-\mathrm{PD}_{cum}(t-1)"
+        )
+        st.caption(
+            "Hypothese du demonstrateur : taux de hasard annuel constant. "
+            "Une implementation bancaire utiliserait des courbes calibrees, "
+            "segmentees et potentiellement conditionnees aux scenarios macro."
+        )
+
+
+def render_lgd_methodology_popover() -> None:
+    """Explain the key recovery-based LGD concepts and formulas."""
+    with st.popover("Comprendre la LGD", icon=":material/info:"):
+        st.markdown("#### Loss Given Default")
+        st.write(
+            "La **LGD** represente la part de l'exposition qui resterait perdue "
+            "si le debiteur faisait defaut, apres prise en compte des "
+            "recouvrements et de leur actualisation."
+        )
+        st.latex(
+            r"\mathrm{LGD}=1-"
+            r"\frac{\mathrm{PV}(\mathrm{recouvrements\ nets})}{\mathrm{EAD}}"
+        )
+        st.markdown(
+            """
+            - **Surete** : actif ou garantie mobilisable pour reduire la perte.
+            - **LTV** : rapport entre l'exposition et la valeur du collateral.
+              Une LTV elevee signifie une couverture plus faible.
+            - **Haircut** : decote prudente appliquee a la valeur de la surete.
+            - **Couts** : frais de realisation, liquidation et recouvrement.
+            - **Delai** : temps necessaire pour encaisser les recouvrements.
+              Plus il est long, plus leur valeur actualisee diminue.
+            """
+        )
+        st.latex(
+            r"\mathrm{Recouvrement\ garanti}"
+            r"=\min\left[\mathrm{EAD},"
+            r"\mathrm{Valeur\ surete}\times(1-\mathrm{haircut})"
+            r"\times(1-\mathrm{couts})\right]"
+        )
+        st.latex(
+            r"\mathrm{PV}(\mathrm{recouvrement})"
+            r"=\frac{\mathrm{recouvrement\ net}}"
+            r"{(1+\mathrm{TIE})^{\mathrm{delai}/12}}"
+        )
+        st.caption(
+            "Les valeurs, decotes, couts et delais sont synthetiques. "
+            "Ils illustrent une logique de calcul et ne constituent pas une "
+            "calibration LGD de production."
+        )
+
+
 def render_risk_parameters(
     portfolio: pd.DataFrame,
     summary: dict[str, float | str],
@@ -3532,7 +3607,11 @@ def render_risk_parameters(
             "Un horizon minimal d'un an est retenu dans cette version pedagogique."
         )
 
-    st.markdown("#### Courbe de PD lifetime par stage")
+    pd_title, pd_help = st.columns([0.78, 0.22], vertical_alignment="center")
+    with pd_title:
+        st.markdown("#### Courbe de PD lifetime par stage")
+    with pd_help:
+        render_pd_methodology_popover()
     if curve_by_stage.empty:
         st.info("Courbe de PD lifetime indisponible pour le perimetre selectionne.")
     else:
@@ -3667,7 +3746,11 @@ def render_risk_parameters(
         )
         st.plotly_chart(marginal_figure, width="stretch")
 
-    st.markdown("### LGD fondee sur les recouvrements")
+    lgd_title, lgd_help = st.columns([0.78, 0.22], vertical_alignment="center")
+    with lgd_title:
+        st.markdown("### LGD fondee sur les recouvrements")
+    with lgd_help:
+        render_lgd_methodology_popover()
     st.write(
         "La LGD est estimee a partir des garanties, des haircuts, des couts et "
         "delais de recouvrement, puis actualisee au taux d'interet effectif. "
@@ -3730,6 +3813,154 @@ def render_risk_parameters(
             "liquidation, delais de recovery et taux de recouvrement non garanti "
             "sont des hypotheses synthetiques explicites."
         )
+
+    st.markdown("#### Facteurs explicatifs de la LGD")
+    st.caption(
+        "Ces graphiques montrent comment la couverture, le niveau de LTV, les "
+        "decotes, les couts et les delais influencent les pertes en cas de defaut."
+    )
+    lgd_driver_views = build_lgd_driver_views(portfolio)
+    driver_left, driver_right = st.columns(2)
+    with driver_left:
+        coverage_data = lgd_driver_views["coverage"]
+        if not coverage_data.empty:
+            coverage_figure = px.pie(
+                coverage_data,
+                names="statut",
+                values="ead",
+                hole=0.62,
+                title="Couverture de l'EAD par les suretes",
+                color="statut",
+                color_discrete_map={
+                    "Avec surete": "#0B2B46",
+                    "Sans surete": "#F1A986",
+                },
+            )
+            coverage_figure.update_traces(
+                textposition="inside",
+                texttemplate="%{label}<br>%{percent:.1%}",
+                hovertemplate="<b>%{label}</b><br>EAD : %{value:,.0f} EUR<extra></extra>",
+            )
+            coverage_figure.update_layout(
+                height=390,
+                legend_title_text="",
+                paper_bgcolor="rgba(0,0,0,0)",
+                margin=dict(l=10, r=10, t=50, b=20),
+            )
+            st.plotly_chart(coverage_figure, width="stretch")
+    with driver_right:
+        ltv_view = lgd_driver_views["ltv"]
+        if not ltv_view.empty:
+            ltv_figure = go.Figure()
+            ltv_figure.add_bar(
+                x=ltv_view["tranche_ltv"],
+                y=ltv_view["ead"],
+                name="EAD",
+                marker_color="#8298AA",
+                text=[
+                    format_compact_currency(float(value))
+                    for value in ltv_view["ead"]
+                ],
+                textposition="outside",
+            )
+            ltv_figure.add_scatter(
+                x=ltv_view["tranche_ltv"],
+                y=ltv_view["lgd"],
+                name="LGD moyenne",
+                mode="lines+markers",
+                marker={"color": "#F1A986", "size": 10},
+                line={"color": "#F1A986", "width": 3},
+                yaxis="y2",
+                text=[f"{value:.1%}" for value in ltv_view["lgd"]],
+                textposition="top center",
+            )
+            ltv_figure.update_layout(
+                title="LTV, exposition et LGD",
+                height=390,
+                xaxis_title="Tranche de LTV",
+                yaxis={"title": "EAD (EUR)", "showgrid": True},
+                yaxis2={
+                    "title": "LGD moyenne",
+                    "overlaying": "y",
+                    "side": "right",
+                    "tickformat": ".0%",
+                    "range": [0, 1],
+                    "showgrid": False,
+                },
+                legend={
+                    "orientation": "h",
+                    "yanchor": "bottom",
+                    "y": 1.02,
+                    "xanchor": "right",
+                    "x": 1,
+                },
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                margin=dict(l=10, r=10, t=70, b=20),
+            )
+            st.plotly_chart(ltv_figure, width="stretch")
+
+    assumption_left, assumption_right = st.columns(2)
+    with assumption_left:
+        assumption_view = lgd_driver_views["assumptions"]
+        if not assumption_view.empty:
+            assumption_figure = px.bar(
+                assumption_view,
+                x="collateral_type",
+                y="taux",
+                color="hypothese",
+                barmode="group",
+                text_auto=".1%",
+                title="Haircuts et couts par type de surete",
+                labels={
+                    "collateral_type": "Type de surete",
+                    "taux": "Taux moyen",
+                    "hypothese": "Hypothese",
+                },
+                color_discrete_map={
+                    "Haircut": "#0B2B46",
+                    "Cout de liquidation": "#F1A986",
+                },
+            )
+            assumption_figure.update_layout(
+                height=430,
+                yaxis_tickformat=".0%",
+                legend_title_text="",
+                xaxis_tickangle=-20,
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                margin=dict(l=10, r=10, t=55, b=90),
+            )
+            st.plotly_chart(assumption_figure, width="stretch")
+    with assumption_right:
+        delay_view = lgd_driver_views["delay"]
+        if not delay_view.empty:
+            delay_figure = px.bar(
+                delay_view,
+                x="tranche_delai",
+                y="lgd",
+                text_auto=".1%",
+                title="Delai de recouvrement et LGD",
+                labels={
+                    "tranche_delai": "Delai de recouvrement",
+                    "lgd": "LGD moyenne",
+                },
+                color="lgd",
+                color_continuous_scale=[
+                    [0.0, "#F7D7C7"],
+                    [0.55, "#F1A986"],
+                    [1.0, "#0B2B46"],
+                ],
+            )
+            delay_figure.update_layout(
+                height=430,
+                yaxis_tickformat=".0%",
+                coloraxis_showscale=False,
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                margin=dict(l=10, r=10, t=55, b=50),
+            )
+            st.plotly_chart(delay_figure, width="stretch")
 
     lgd_left, lgd_right = st.columns(2)
     with lgd_left:

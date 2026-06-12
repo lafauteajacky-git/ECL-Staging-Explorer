@@ -428,3 +428,126 @@ def build_lgd_waterfall(portfolio: pd.DataFrame) -> pd.DataFrame:
             {"step": "Perte finale", "amount": loss, "measure": "total"},
         ]
     )
+
+
+def build_lgd_driver_views(portfolio: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """Prepare compact LGD-driver summaries for visual explanation."""
+    data = portfolio.copy()
+    numeric_columns = [
+        "ead",
+        "lgd",
+        "ltv",
+        "collateral_haircut",
+        "liquidation_cost_rate",
+        "recovery_cost_amount",
+        "lgd_recovery_delay_adjusted",
+    ]
+    for column in numeric_columns:
+        if column in data:
+            data[column] = pd.to_numeric(data[column], errors="coerce")
+
+    ead = data.get("ead", pd.Series(0.0, index=data.index)).clip(lower=0).fillna(0)
+    collateral = coerce_boolean_series(
+        data.get("collateral_flag", pd.Series(False, index=data.index))
+    )
+    coverage = pd.DataFrame(
+        {
+            "statut": np.where(collateral, "Avec surete", "Sans surete"),
+            "ead": ead,
+        }
+    ).groupby("statut", as_index=False)["ead"].sum()
+
+    ltv_data = data.loc[
+        collateral
+        & data.get("ltv", pd.Series(np.nan, index=data.index)).notna()
+        & data.get("lgd", pd.Series(np.nan, index=data.index)).notna()
+    ].copy()
+    ltv_data["tranche_ltv"] = pd.cut(
+        ltv_data["ltv"],
+        bins=[-np.inf, 0.50, 0.70, 0.90, 1.00, np.inf],
+        labels=["<= 50%", "50% - 70%", "70% - 90%", "90% - 100%", "> 100%"],
+        ordered=True,
+    )
+    ltv_records = []
+    for bucket, group in ltv_data.groupby("tranche_ltv", observed=False):
+        bucket_ead = group["ead"].clip(lower=0).fillna(0)
+        ltv_records.append(
+            {
+                "tranche_ltv": str(bucket),
+                "ead": float(bucket_ead.sum()),
+                "lgd": safe_divide(
+                    float((group["lgd"] * bucket_ead).sum()),
+                    float(bucket_ead.sum()),
+                ),
+                "exposure_count": len(group),
+            }
+        )
+
+    collateral_type = data.get(
+        "collateral_type",
+        pd.Series("Non renseigne", index=data.index),
+    ).fillna("Non renseigne")
+    assumptions = data.assign(collateral_type=collateral_type)
+    assumptions = (
+        assumptions.groupby("collateral_type", as_index=False)
+        .agg(
+            haircut=("collateral_haircut", "mean"),
+            liquidation_cost=("liquidation_cost_rate", "mean"),
+            recovery_cost_amount=("recovery_cost_amount", "mean"),
+            ead=("ead", "sum"),
+        )
+        .sort_values("ead", ascending=False)
+    )
+    assumptions_long = assumptions.melt(
+        id_vars=["collateral_type", "ead", "recovery_cost_amount"],
+        value_vars=["haircut", "liquidation_cost"],
+        var_name="hypothese",
+        value_name="taux",
+    )
+    assumptions_long["hypothese"] = assumptions_long["hypothese"].map(
+        {
+            "haircut": "Haircut",
+            "liquidation_cost": "Cout de liquidation",
+        }
+    )
+
+    delay_data = data.loc[
+        data.get(
+            "lgd_recovery_delay_adjusted",
+            pd.Series(np.nan, index=data.index),
+        ).notna()
+        & data.get("lgd", pd.Series(np.nan, index=data.index)).notna()
+    ].copy()
+    delay_data["tranche_delai"] = pd.cut(
+        delay_data["lgd_recovery_delay_adjusted"],
+        bins=[-np.inf, 12, 24, 36, 48, np.inf],
+        labels=[
+            "<= 12 mois",
+            "13 - 24 mois",
+            "25 - 36 mois",
+            "37 - 48 mois",
+            "> 48 mois",
+        ],
+        ordered=True,
+    )
+    delay_records = []
+    for bucket, group in delay_data.groupby("tranche_delai", observed=False):
+        bucket_ead = group["ead"].clip(lower=0).fillna(0)
+        delay_records.append(
+            {
+                "tranche_delai": str(bucket),
+                "lgd": safe_divide(
+                    float((group["lgd"] * bucket_ead).sum()),
+                    float(bucket_ead.sum()),
+                ),
+                "ead": float(bucket_ead.sum()),
+                "exposure_count": len(group),
+            }
+        )
+
+    return {
+        "coverage": coverage,
+        "ltv": pd.DataFrame(ltv_records),
+        "assumptions": assumptions_long,
+        "delay": pd.DataFrame(delay_records),
+    }
