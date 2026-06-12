@@ -101,3 +101,50 @@ def test_floors_negative_pd_and_lgd_at_zero():
     assert result.loc[0, "pd_lifetime_adjusted"] == 0.0
     assert result.loc[0, "lgd_adjusted"] == 0.0
     assert result.loc[0, "scenario_ecl"] == 0.0
+
+
+def test_dynamic_stage2_scenario_uses_adjusted_lifetime_pd_lgd_and_ead():
+    portfolio = pd.DataFrame(
+        [
+            {
+                "loan_id": "LN-S2",
+                "stage": "Stage 2",
+                "product_type": "SME term loan",
+                "current_rating": 6,
+                "pd_12m": 0.10,
+                "pd_lifetime": 0.19,
+                "lgd": 0.40,
+                "ead": 1_000.0,
+                "effective_interest_rate": 0.05,
+                "residual_maturity_months": 24,
+                "undrawn_commitment": 200.0,
+                "ccf_base": 0.20,
+                "amortisation_type": "Amortising",
+            }
+        ]
+    )
+
+    result = calculate_scenario_ecl(
+        portfolio,
+        "Stress",
+        pd_multiplier=1.35,
+        lgd_multiplier=1.15,
+    )
+
+    adjusted_lifetime_pd = 0.19 * 1.35
+    adjusted_lgd = 0.40 * 1.15
+    adjusted_ccf = 0.20 + 0.10 + 0.05
+    year_1_ead = 750.0 + 150.0 * adjusted_ccf
+    year_2_ead = 250.0 + 50.0 * adjusted_ccf
+    marginal_pd_1 = 1 - (1 - adjusted_lifetime_pd) ** 0.5
+    marginal_pd_2 = adjusted_lifetime_pd - marginal_pd_1
+    expected = (
+        marginal_pd_1 * adjusted_lgd * year_1_ead / 1.05
+        + marginal_pd_2 * adjusted_lgd * year_2_ead / (1.05**2)
+    )
+
+    assert result.loc[0, "pd_lifetime_adjusted"] == pytest.approx(
+        adjusted_lifetime_pd
+    )
+    assert result.loc[0, "lgd_adjusted"] == pytest.approx(adjusted_lgd)
+    assert result.loc[0, "scenario_ecl"] == pytest.approx(expected)

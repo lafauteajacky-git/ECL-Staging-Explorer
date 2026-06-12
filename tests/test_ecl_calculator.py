@@ -4,6 +4,7 @@ import pytest
 import modules.ecl_calculator as ecl_calculator
 from modules.ead_engine import calculate_ead
 from modules.ecl_calculator import calculate_ecl, calculate_portfolio_metrics, summarize_ecl
+from modules.lgd_engine import calculate_lgd
 
 
 def test_calculates_stage_1_ecl_with_12m_pd():
@@ -176,3 +177,180 @@ def test_lifetime_projection_is_limited_to_stage2(monkeypatch):
     calculate_ecl(portfolio)
 
     assert projected_stages == ["Stage 2"]
+
+
+def test_dynamic_stage1_ecl_reconciles_pd_lgd_and_average_12m_ead():
+    portfolio = pd.DataFrame(
+        [
+            {
+                "loan_id": "LN-S1",
+                "stage": "Stage 1",
+                "product_type": "SME term loan",
+                "current_rating": 4,
+                "pd_12m": 0.10,
+                "pd_lifetime": 0.19,
+                "lgd": 0.40,
+                "ead": 1_000.0,
+                "effective_interest_rate": 0.05,
+                "residual_maturity_months": 24,
+                "undrawn_commitment": 200.0,
+                "ccf_base": 0.20,
+                "amortisation_type": "Amortising",
+            }
+        ]
+    )
+
+    result = calculate_ecl(portfolio)
+
+    adjusted_ccf = 0.20 + 0.05  # Utilisation above 80%.
+    current_ead = 1_000.0 + 200.0 * adjusted_ccf
+    endpoint_12m_ead = 500.0 + 100.0 * adjusted_ccf
+    expected_ead = (current_ead + endpoint_12m_ead) / 2
+    expected_ecl = 0.10 * 0.40 * expected_ead
+
+    assert result.loc[0, "ead_used_for_ecl"] == pytest.approx(expected_ead)
+    assert result.loc[0, "lgd_used_for_ecl"] == pytest.approx(0.40)
+    assert result.loc[0, "pd_used_for_ecl"] == pytest.approx(0.10)
+    assert result.loc[0, "ecl"] == pytest.approx(expected_ecl)
+
+
+def test_dynamic_stage2_ecl_reconciles_to_lifetime_pd_and_projected_ead():
+    portfolio = pd.DataFrame(
+        [
+            {
+                "loan_id": "LN-S2",
+                "stage": "Stage 2",
+                "product_type": "SME term loan",
+                "current_rating": 6,
+                "pd_12m": 0.10,
+                "pd_lifetime": 0.19,
+                "lgd": 0.40,
+                "ead": 1_000.0,
+                "effective_interest_rate": 0.05,
+                "residual_maturity_months": 24,
+                "undrawn_commitment": 200.0,
+                "ccf_base": 0.20,
+                "amortisation_type": "Amortising",
+            }
+        ]
+    )
+
+    result = calculate_ecl(portfolio)
+
+    adjusted_ccf = 0.20 + 0.10 + 0.05
+    year_1_ead = 750.0 + 150.0 * adjusted_ccf
+    year_2_ead = 250.0 + 50.0 * adjusted_ccf
+    annual_hazard = 1 - (1 - 0.19) ** 0.5
+    marginal_pd_1 = annual_hazard
+    marginal_pd_2 = 0.19 - annual_hazard
+    expected_ecl = (
+        marginal_pd_1 * 0.40 * year_1_ead / 1.05
+        + marginal_pd_2 * 0.40 * year_2_ead / (1.05**2)
+    )
+
+    assert marginal_pd_1 + marginal_pd_2 == pytest.approx(0.19)
+    assert result.loc[0, "pd_used_for_ecl"] == pytest.approx(0.19)
+    assert result.loc[0, "lgd_used_for_ecl"] == pytest.approx(0.40)
+    assert result.loc[0, "ecl"] == pytest.approx(expected_ecl)
+
+
+def test_stage2_short_maturity_uses_full_lifetime_pd():
+    portfolio = pd.DataFrame(
+        [
+            {
+                "loan_id": "LN-S2-SHORT",
+                "stage": "Stage 2",
+                "product_type": "Corporate loan",
+                "current_rating": 6,
+                "pd_12m": 0.10,
+                "pd_lifetime": 0.10,
+                "lgd": 0.40,
+                "ead": 1_000.0,
+                "effective_interest_rate": 0.05,
+                "residual_maturity_months": 6,
+                "undrawn_commitment": 0.0,
+                "ccf_base": 0.0,
+                "amortisation_type": "Bullet",
+            }
+        ]
+    )
+
+    result = calculate_ecl(portfolio)
+
+    expected = 0.10 * 0.40 * 1_000.0 / (1.05**0.5)
+    assert result.loc[0, "pd_used_for_ecl"] == pytest.approx(0.10)
+    assert result.loc[0, "ecl"] == pytest.approx(expected)
+
+
+def test_dynamic_stage3_ecl_uses_full_pd_lgd_and_ccf_ead():
+    portfolio = pd.DataFrame(
+        [
+            {
+                "loan_id": "LN-S3",
+                "stage": "Stage 3",
+                "product_type": "SME term loan",
+                "current_rating": 9,
+                "pd_12m": 0.40,
+                "pd_lifetime": 0.80,
+                "lgd": 0.60,
+                "ead": 1_000.0,
+                "effective_interest_rate": 0.05,
+                "residual_maturity_months": 24,
+                "undrawn_commitment": 200.0,
+                "ccf_base": 0.20,
+                "amortisation_type": "Amortising",
+            }
+        ]
+    )
+
+    result = calculate_ecl(portfolio)
+
+    adjusted_ccf = 0.20 + 0.25 + 0.10 + 0.05
+    expected_ead = 1_000.0 + 200.0 * adjusted_ccf
+    expected_ecl = 1.0 * 0.60 * expected_ead
+
+    assert result.loc[0, "pd_used_for_ecl"] == pytest.approx(1.0)
+    assert result.loc[0, "ead_used_for_ecl"] == pytest.approx(expected_ead)
+    assert result.loc[0, "ecl"] == pytest.approx(expected_ecl)
+
+
+def test_ecl_uses_recovery_based_lgd_output():
+    portfolio = pd.DataFrame(
+        [
+            {
+                "loan_id": "LN-LGD",
+                "stage": "Stage 1",
+                "product_type": "Mortgage",
+                "current_rating": 3,
+                "pd_12m": 0.02,
+                "pd_lifetime": 0.08,
+                "lgd": 0.40,
+                "ead": 100_000.0,
+                "effective_interest_rate": 0.05,
+                "residual_maturity_months": 24,
+                "undrawn_commitment": 0.0,
+                "ccf_base": 0.0,
+                "amortisation_type": "Amortising",
+                "collateral_value": 125_000.0,
+                "collateral_haircut": 0.20,
+                "liquidation_cost_rate": 0.07,
+                "unsecured_recovery_rate": 0.18,
+                "recovery_delay_months": 24,
+                "recovery_cost_amount": 1_000.0,
+                "seniority": "Senior secured",
+            }
+        ]
+    )
+    with_lgd = calculate_lgd(portfolio, preserve_missing_lgd=False)
+
+    result = calculate_ecl(with_lgd)
+
+    expected = (
+        result.loc[0, "pd_used_for_ecl"]
+        * with_lgd.loc[0, "lgd"]
+        * result.loc[0, "ead_used_for_ecl"]
+    )
+    assert result.loc[0, "lgd_used_for_ecl"] == pytest.approx(
+        with_lgd.loc[0, "lgd"]
+    )
+    assert result.loc[0, "ecl"] == pytest.approx(expected)

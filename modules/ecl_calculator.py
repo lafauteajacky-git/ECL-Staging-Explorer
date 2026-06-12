@@ -51,6 +51,15 @@ def calculate_ecl(staged_portfolio: pd.DataFrame) -> pd.DataFrame:
             ],
             default=ead,
         )
+        result.loc[result["stage"].eq("Stage 1"), "ecl_method"] = (
+            "12-month PD x average 12-month EAD x LGD"
+        )
+        result.loc[result["stage"].eq("Stage 2"), "ecl_method"] = (
+            "Marginal lifetime PD x projected EAD x LGD x discount factor"
+        )
+        result.loc[result["stage"].eq("Stage 3"), "ecl_method"] = (
+            "100% PD x current EAD including CCF x LGD"
+        )
 
     result["ecl"] = (
         result["pd_used_for_ecl"]
@@ -68,15 +77,6 @@ def calculate_ecl(staged_portfolio: pd.DataFrame) -> pd.DataFrame:
             stage_2,
             "loan_id",
         ].map(lifetime_ead)
-        result.loc[stage_2, "ecl_method"] = (
-            "Marginal lifetime PD x projected EAD x LGD x discount factor"
-        )
-        result.loc[result["stage"].eq("Stage 1"), "ecl_method"] = (
-            "12-month PD x average 12-month EAD x LGD"
-        )
-        result.loc[result["stage"].eq("Stage 3"), "ecl_method"] = (
-            "100% PD x current EAD including CCF x LGD"
-        )
 
     result["coverage_ratio"] = safe_divide(result["ecl"], ead)
     return result
@@ -92,18 +92,41 @@ def _calculate_stage2_lifetime_ecl(
         return {}, {}
 
     parameters = stage_2_portfolio.set_index("loan_id")[
-        ["pd_12m", "lgd", "effective_interest_rate"]
+        [
+            "pd_lifetime",
+            "lgd",
+            "effective_interest_rate",
+            "residual_maturity_months",
+        ]
     ]
     term = term.join(parameters, on="loan_id")
-    pd_12m = pd.to_numeric(term["pd_12m"], errors="coerce").clip(0, 1)
-    horizon_years = pd.to_numeric(term["horizon_months"], errors="coerce") / 12.0
-    previous_years = np.maximum(
-        pd.to_numeric(term["year"], errors="coerce") - 1,
-        0,
+    lifetime_pd = pd.to_numeric(
+        term["pd_lifetime"],
+        errors="coerce",
+    ).clip(0, 1)
+    maturity_months = pd.to_numeric(
+        term["residual_maturity_months"],
+        errors="coerce",
+    ).fillna(12).clip(lower=1)
+    horizon_months = pd.to_numeric(
+        term["horizon_months"],
+        errors="coerce",
     )
-    cumulative_pd = 1.0 - np.power(1.0 - pd_12m, horizon_years)
-    previous_pd = 1.0 - np.power(1.0 - pd_12m, previous_years)
+    previous_horizon_months = np.maximum(
+        (pd.to_numeric(term["year"], errors="coerce") - 1) * 12.0,
+        0.0,
+    )
+    horizon_share = (horizon_months / maturity_months).clip(0, 1)
+    previous_horizon_share = (
+        previous_horizon_months / maturity_months
+    ).clip(0, 1)
+    cumulative_pd = 1.0 - np.power(1.0 - lifetime_pd, horizon_share)
+    previous_pd = 1.0 - np.power(
+        1.0 - lifetime_pd,
+        previous_horizon_share,
+    )
     term["marginal_pd"] = (cumulative_pd - previous_pd).clip(lower=0)
+    horizon_years = horizon_months / 12.0
     term["discount_factor"] = np.power(
         1.0
         + pd.to_numeric(

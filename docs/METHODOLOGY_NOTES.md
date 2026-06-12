@@ -71,6 +71,10 @@ annuelles :
 
 `ECL lifetime = somme(PD marginale(t) x EAD projetee(t) x LGD x facteur d'actualisation(t))`
 
+Les PD marginales Stage 2 sont derivees de la PD lifetime de chaque exposition.
+Leur somme sur la maturite residuelle se reconcilie donc avec la PD lifetime
+affichee, y compris lorsque la maturite est inferieure a douze mois.
+
 Pour le Stage 3, l'EAD courante incluant la partie non tiree convertie est
 utilisee avec l'hypothese de PD a 100%.
 
